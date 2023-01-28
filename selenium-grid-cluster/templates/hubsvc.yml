@@ -16,3 +16,4 @@ spec:
   - port: 9994
     targetPort: 4444
     name: uiport
+    nodePort: 30000

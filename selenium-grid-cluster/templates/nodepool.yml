@@ -12,13 +12,20 @@ spec:
       labels:
         app: selnodepool
     spec:
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
       containers:
       - name: selnodepool
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: dshm
         image: selenium/node-chrome
         resources:
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "2Gi"
+            cpu: "2.0"
         ports:
         - containerPort: 5555
         env:
@@ -29,6 +36,8 @@ spec:
           - name: SE_EVENT_BUS_SUBSCRIBE_PORT
             value: "9993"
           - name: SE_NODE_MAX_SESSIONS
-            value: "3"
+            value: "4"
           - name: SE_NODE_OVERRIDE_MAX_SESSIONS
             value: "true"
+          - name: SE_OPTS
+            value: "--log-level FINE"
