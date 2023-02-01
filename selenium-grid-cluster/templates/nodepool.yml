@@ -21,7 +21,7 @@ spec:
         volumeMounts:
         - mountPath: /dev/shm
           name: dshm
-        image: selenium/node-chrome
+        image: docker.io/selenium/node-chrome
         resources:
           limits:
             memory: "2Gi"
