@@ -43,5 +43,7 @@ func NewGridExporterCommand() *cobra.Command {
 	set.Uint16Var(&port, "port", 9000, "Specify the port the exporter will listen on.")
 	set.StringVar(&hubhost, "hub", "http://127.0.0.1:4444", "Specify the full hostname of the remote Grid Hub you want to export metrics from.")
 
+	cmd.Flags().AddFlagSet(set)
+
 	return cmd
 }
