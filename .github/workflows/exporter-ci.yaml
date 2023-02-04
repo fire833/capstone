@@ -1,0 +1,39 @@
+
+name: Build and push exporter image
+
+on:
+  # release:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  exporter-build-push:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Install Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: '>=1.18.0'
+
+    - name: Buildah Build
+      uses: redhat-actions/buildah-build@v2.11
+      with:
+        containerfiles: exporter/Dockerfile
+        image: ghcr.io/fire833/capstone/grid-exporter
+        tags: latest v${{ github.ref_name }}
+        layers: true
+
+    - name: Push To Registry
+      uses: redhat-actions/push-to-registry@v2.7
+      with:
+        registry: ghcr.io
+        image: ghcr.io/fire833/capstone/grid-exporter
+        tags: latest v${{ github.ref_name }}
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GHCRPAT }}
+        tls-verify: true

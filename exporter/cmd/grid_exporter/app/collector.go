@@ -9,11 +9,17 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+const gridNs string = "selenium_grid"
+
 type GridCollector struct {
 	hubhost string
 
-	hubUp    prometheus.Gauge
-	deSerErr prometheus.Gauge
+	hubUp                    prometheus.Gauge
+	deSerErr                 prometheus.Gauge
+	numNodes                 prometheus.Gauge
+	numUsedSessionsAggregate prometheus.Gauge
+	maxSessionsAggregate     prometheus.Gauge
+	queueSize                prometheus.Gauge
 
 	ready prometheus.Gauge
 
@@ -23,23 +29,54 @@ type GridCollector struct {
 func NewGridCollector(hub string) *GridCollector {
 	return &GridCollector{
 		hubhost: hub,
+
 		hubUp: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "selenium_grid",
+			Namespace: gridNs,
 			Subsystem: "",
 			Name:      "accesible",
 			Help:      "This metric will be set to 1 if the last ping to the hub was successful, and 0 otherwise",
 		}),
+
 		deSerErr: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "selenium_grid",
+			Namespace: gridNs,
 			Subsystem: "",
 			Name:      "deserialization_error",
 			Help:      "This metric will be set to 1 if there was an error deserializing the last status response from the server, and 0 otherwise",
 		}),
+
 		ready: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "selenium_grid",
+			Namespace: gridNs,
 			Subsystem: "",
 			Name:      "ready",
 			Help:      "This metric will be set to 1 if the hub server indicates it is ready to receive requests, and 0 otherwise",
+		}),
+
+		numNodes: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "",
+			Name:      "num_nodes",
+			Help:      "This metric provides the current number of nodes within the Selenium Grid cluster",
+		}),
+
+		numUsedSessionsAggregate: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "",
+			Name:      "num_sessions_aggregated",
+			Help:      "This metric provides an aggregated quantity of the number of sessions running within this Selenium Grid cluster",
+		}),
+
+		maxSessionsAggregate: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "",
+			Name:      "max_sessions_aggregated",
+			Help:      "This metric provides an aggregated quantity of the maximum number of sessions able to be run within this Selenium Grid cluster",
+		}),
+
+		queueSize: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "",
+			Name:      "queue_size",
+			Help:      "This metric provides information on the queue size within your Selenium Grid Hub",
 		}),
 
 		deserialized: &StatusMessageWrap{},
@@ -76,6 +113,30 @@ func (c *GridCollector) Collect(ch chan<- prometheus.Metric) {
 			c.ready.Set(0)
 			ch <- c.ready
 		}
+
+		maxSessions := 0
+		currSessions := 0
+
+		for _, node := range c.deserialized.Value.Nodes {
+			maxSessions += node.MaxSessions
+
+			for _, slot := range node.Slots {
+				if slot.Session != nil {
+					currSessions++
+				}
+			}
+		}
+
+		// Set number of nodes.
+		c.numNodes.Set(float64(len(c.deserialized.Value.Nodes)))
+		ch <- c.numNodes
+		// Set the max sessions
+		c.maxSessionsAggregate.Set(float64(maxSessions))
+		ch <- c.maxSessionsAggregate
+		// Set the current utilized sessions
+		c.numUsedSessionsAggregate.Set(float64(currSessions))
+		ch <- c.numUsedSessionsAggregate
+
 	}
 
 }
@@ -87,9 +148,9 @@ type StatusMessageWrap struct {
 }
 
 type StatusMessage struct {
-	Ready   bool         `json:"ready"`
-	Message string       `json:"message"`
-	Nodes   []NodeStatus `json:"nodes"`
+	Ready   bool          `json:"ready"`
+	Message string        `json:"message"`
+	Nodes   []*NodeStatus `json:"nodes"`
 }
 
 type NodeStatus struct {
@@ -101,19 +162,70 @@ type NodeStatus struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
 	} `json:"osInfo"`
-	HeartbeatPeriod int    `json:"heartbeatPeriod"`
-	Availability    string `json:"availability"`
-	Version         string `json:"version"`
-	Slots           []struct {
-		ID struct {
-			HostID string `json:"hostId"`
-			ID     string `json:"id"`
-		} `json:"id"`
-		LastStarted time.Time   `json:"lastStarted"`
-		Session     interface{} `json:"session"`
-		Stereotype  struct {
-			BrowserName  string `json:"browserName"`
-			PlatformName string `json:"platformName"`
-		} `json:"stereotype"`
-	} `json:"slots"`
+	HeartbeatPeriod int         `json:"heartbeatPeriod"`
+	Availability    string      `json:"availability"`
+	Version         string      `json:"version"`
+	Slots           []*NodeSlot `json:"slots"`
+}
+
+type NodeSlot struct {
+	ID struct {
+		HostID string `json:"hostId"`
+		ID     string `json:"id"`
+	} `json:"id"`
+	LastStarted time.Time    `json:"lastStarted"`
+	Session     *NodeSession `json:"session"`
+	Stereotype  struct {
+		BrowserName  string `json:"browserName"`
+		PlatformName string `json:"platformName"`
+	} `json:"stereotype"`
+}
+
+type NodeSession struct {
+	Capabilities *NodeSessionCapabilities `json:"capabilities"`
+	SessionID    string                   `json:"sessionId"`
+	Start        time.Time                `json:"start"`
+	Stereotype   struct {
+		BrowserName    string `json:"browserName"`
+		BrowserVersion string `json:"browserVersion"`
+		PlatformName   string `json:"platformName"`
+		SeNoVncPort    int    `json:"se:noVncPort"`
+		SeVncEnabled   bool   `json:"se:vncEnabled"`
+	} `json:"stereotype"`
+	URI string `json:"uri"`
+}
+
+type NodeSessionCapabilities struct {
+	AcceptInsecureCerts bool   `json:"acceptInsecureCerts"`
+	BrowserName         string `json:"browserName"`
+	BrowserVersion      string `json:"browserVersion"`
+	Chrome              struct {
+		ChromedriverVersion string `json:"chromedriverVersion"`
+		UserDataDir         string `json:"userDataDir"`
+	} `json:"chrome"`
+	GoogChromeOptions struct {
+		DebuggerAddress string `json:"debuggerAddress"`
+	} `json:"goog:chromeOptions"`
+	NetworkConnectionEnabled bool   `json:"networkConnectionEnabled"`
+	PageLoadStrategy         string `json:"pageLoadStrategy"`
+	PlatformName             string `json:"platformName"`
+	Proxy                    struct {
+	} `json:"proxy"`
+	SeBidiEnabled             bool   `json:"se:bidiEnabled"`
+	SeCdp                     string `json:"se:cdp"`
+	SeCdpVersion              string `json:"se:cdpVersion"`
+	SeVnc                     string `json:"se:vnc"`
+	SeVncEnabled              bool   `json:"se:vncEnabled"`
+	SeVncLocalAddress         string `json:"se:vncLocalAddress"`
+	SetWindowRect             bool   `json:"setWindowRect"`
+	StrictFileInteractability bool   `json:"strictFileInteractability"`
+	Timeouts                  struct {
+		Implicit int `json:"implicit"`
+		PageLoad int `json:"pageLoad"`
+		Script   int `json:"script"`
+	} `json:"timeouts"`
+	UnhandledPromptBehavior       string `json:"unhandledPromptBehavior"`
+	WebauthnExtensionCredBlob     bool   `json:"webauthn:extension:credBlob"`
+	WebauthnExtensionLargeBlob    bool   `json:"webauthn:extension:largeBlob"`
+	WebauthnVirtualAuthenticators bool   `json:"webauthn:virtualAuthenticators"`
 }
