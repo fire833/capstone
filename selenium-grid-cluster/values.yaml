@@ -1,0 +1,28 @@
+---
+
+# -- Node management options for each selenium grid node managed by this chart.
+nodes:
+
+  # This section will provide you with an overview of theoretically, how many tests
+  # you can run concurrently with the base setup. It is simply replicas X concurrency, 
+  # and that gives you the estimated number of concurrent tests/sessions you can run 
+  # with this cluster.
+
+  # -- Specify the number of selenium node pods you want spun up as a base case.
+  replicas: 5
+
+  # -- Specify the maximum concurrency level that you want for each node pod.
+  concurrency: 5
+
+  resources:
+    limits:
+
+      # Specify the maximum
+      memory:
+      cpu:
+
+# -- Hub management options for the hub node managed by this chart. 
+hub:
+
+
+

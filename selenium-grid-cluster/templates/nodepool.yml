@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: selnodepool
 spec:
-  replicas: 3
+  replicas: {{ .Values.nodes.replicas }}
   selector:
     matchLabels:
       app: selnodepool
@@ -36,7 +36,7 @@ spec:
           - name: SE_EVENT_BUS_SUBSCRIBE_PORT
             value: "9993"
           - name: SE_NODE_MAX_SESSIONS
-            value: "4"
+            value: {{ .Values.nodes.concurrency }}
           - name: SE_NODE_OVERRIDE_MAX_SESSIONS
             value: "true"
           - name: SE_OPTS
