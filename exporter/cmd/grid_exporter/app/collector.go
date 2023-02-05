@@ -20,10 +20,12 @@ type GridCollector struct {
 	numUsedSessionsAggregate prometheus.Gauge
 	maxSessionsAggregate     prometheus.Gauge
 	queueSize                prometheus.Gauge
+	queueDeSerErr            prometheus.Gauge
 
 	ready prometheus.Gauge
 
-	deserialized *StatusMessageWrap
+	deserialized      *StatusMessageWrap
+	deserializedQueue *QueueStatusWrap
 }
 
 func NewGridCollector(hub string) *GridCollector {
@@ -33,7 +35,7 @@ func NewGridCollector(hub string) *GridCollector {
 		hubUp: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: gridNs,
 			Subsystem: "",
-			Name:      "accesible",
+			Name:      "accessible",
 			Help:      "This metric will be set to 1 if the last ping to the hub was successful, and 0 otherwise",
 		}),
 
@@ -42,6 +44,13 @@ func NewGridCollector(hub string) *GridCollector {
 			Subsystem: "",
 			Name:      "deserialization_error",
 			Help:      "This metric will be set to 1 if there was an error deserializing the last status response from the server, and 0 otherwise",
+		}),
+
+		queueDeSerErr: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "",
+			Name:      "queue_deserialization_error",
+			Help:      "This metric will be set to 1 if there was an error deserializing the last queue status response from the server, and 0 otherwise",
 		}),
 
 		ready: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -79,7 +88,8 @@ func NewGridCollector(hub string) *GridCollector {
 			Help:      "This metric provides information on the queue size within your Selenium Grid Hub",
 		}),
 
-		deserialized: &StatusMessageWrap{},
+		deserialized:      &StatusMessageWrap{},
+		deserializedQueue: &QueueStatusWrap{},
 	}
 }
 
@@ -98,7 +108,7 @@ func (c *GridCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- c.hubUp
 
 		if e := json.Unmarshal(res, c.deserialized); e != nil {
-			fmt.Println(e)
+			// fmt.Println(e)
 			c.deSerErr.Set(1)
 			ch <- c.deSerErr
 		} else {
@@ -137,6 +147,19 @@ func (c *GridCollector) Collect(ch chan<- prometheus.Metric) {
 		c.numUsedSessionsAggregate.Set(float64(currSessions))
 		ch <- c.numUsedSessionsAggregate
 
+	}
+
+	if _, res, e1 := fasthttp.Get([]byte{}, c.hubhost+"/se/grid/newsessionqueue/queue"); e1 == nil {
+		if e := json.Unmarshal(res, c.deserializedQueue); e != nil {
+			c.queueDeSerErr.Set(1)
+			ch <- c.queueDeSerErr
+		} else {
+			c.queueDeSerErr.Set(0)
+			ch <- c.queueDeSerErr
+		}
+
+		c.queueSize.Set(float64(len(c.deserializedQueue.Value)))
+		ch <- c.queueSize
 	}
 
 }
@@ -228,4 +251,15 @@ type NodeSessionCapabilities struct {
 	WebauthnExtensionCredBlob     bool   `json:"webauthn:extension:credBlob"`
 	WebauthnExtensionLargeBlob    bool   `json:"webauthn:extension:largeBlob"`
 	WebauthnVirtualAuthenticators bool   `json:"webauthn:virtualAuthenticators"`
+}
+
+type QueueStatusWrap struct {
+	Value []*QueueStatus `json:"value"`
+}
+
+type QueueStatus struct {
+	Capabilities []struct {
+		BrowserName string `json:"browserName"`
+	} `json:"capabilities"`
+	RequestID string `json:"requestId"`
 }
