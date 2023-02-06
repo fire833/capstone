@@ -9,17 +9,17 @@ nodes:
   # with this cluster.
 
   # -- Specify the number of selenium node pods you want spun up as a base case.
-  replicas: 5
+  replicas: 2
 
   # -- Specify the maximum concurrency level that you want for each node pod.
-  concurrency: 5
+  concurrency: 2
 
   resources:
     limits:
 
       # Specify the maximum
-      memory:
-      cpu:
+      memory: "2Gi"
+      cpu: "2"
 
 # -- Hub management options for the hub node managed by this chart. 
 hub:
