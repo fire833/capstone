@@ -16,9 +16,15 @@ spec:
         image: docker.io/selenium/hub:4.8.0
         resources:
           limits:
-            memory: "1Gi"
-            cpu: "500m"
+            memory: "2Gi"
+            cpu: "2"
         ports:
         - containerPort: 4444
         - containerPort: 4443
         - containerPort: 4442
+        env:
+          # In milliseconds, maps to "--session-retry-interval"
+          - name: SE_SESSION_RETRY_INTERVAL
+            value: "250"
+          - name: SE_OPTS
+            value: "--healthcheck-interval 5"

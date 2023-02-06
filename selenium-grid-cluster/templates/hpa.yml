@@ -1,0 +1,22 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nodepoolautoscaler
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: selnodepool
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: "selenium_grid_session_util_percent"
+      target:
+        type: "Value"
+        value: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 30

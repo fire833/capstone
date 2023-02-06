@@ -27,7 +27,7 @@ rules:
       name:
         as: "selenium_grid_max_sessions"
     - seriesQuery: '{__name__=~"^selenium_grid_.*_sessions_aggregated$"}'
-      metricsQuery: "(selenium_grid_num_sessions_aggregated / selenium_grid_max_sessions_aggregated) * 100"
+      metricsQuery: "(avg_over_time(selenium_grid_num_sessions_aggregated[10s]) / selenium_grid_max_sessions_aggregated)* 100"
       name:
         as: "selenium_grid_session_util_percent"
       resources:

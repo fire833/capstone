@@ -40,4 +40,4 @@ spec:
           - name: SE_NODE_OVERRIDE_MAX_SESSIONS
             value: "true"
           - name: SE_OPTS
-            value: "--log-level FINE"
+            value: "--log-level FINE --heartbeat-period 5 --session-timeout 60"
