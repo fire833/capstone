@@ -1,0 +1,34 @@
+# Url to access prometheus
+prometheus:
+  # Value is templated
+  url: http://pv1-prometheus-server.default.svc
+  port: 80
+  path: ""
+
+logLevel: 64
+
+rules:
+  default: false
+  external:
+    - seriesQuery: "selenium_grid_num_nodes"
+      metricsQuery: "selenium_grid_num_nodes"
+      resources:
+        namespaced: false
+    - seriesQuery: "selenium_grid_num_sessions"
+      metricsQuery: "selenium_grid_num_sessions"
+      resources:
+        namespaced: false
+      name:
+        as: "selenium_grid_num_sessions"
+    - seriesQuery: "selenium_grid_max_sessions"
+      metricsQuery: "selenium_grid_max_sessions"
+      resources:
+        namespaced: false
+      name:
+        as: "selenium_grid_max_sessions"
+    - seriesQuery: '{__name__=~"^selenium_grid_.*_sessions_aggregated$"}'
+      metricsQuery: "(selenium_grid_num_sessions_aggregated / selenium_grid_max_sessions_aggregated) * 100"
+      name:
+        as: "selenium_grid_session_util_percent"
+      resources:
+        namespaced: false
