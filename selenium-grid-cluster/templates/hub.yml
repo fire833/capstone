@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,11 +14,11 @@ spec:
     spec:
       containers:
       - name: hub
-        image: docker.io/selenium/hub:4.8.0
+        image: {{ .Values.hub.image }}
         resources:
           limits:
-            memory: "2Gi"
-            cpu: "2"
+            memory: {{ .Values.hub.resources.limits.memory | quote }}
+            cpu: {{ .Values.hub.resources.limits.cpu | quote }}
         ports:
         - containerPort: 4444
         - containerPort: 4443

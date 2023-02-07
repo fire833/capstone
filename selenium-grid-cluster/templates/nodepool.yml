@@ -21,11 +21,11 @@ spec:
         volumeMounts:
         - mountPath: /dev/shm
           name: dshm
-        image: docker.io/selenium/node-chrome
+        image: {{ .Values.nodes.image }}
         resources:
           limits:
-            memory: {{.Values.nodes.resources.limits.memory | quote}}
-            cpu: {{.Values.nodes.resources.limits.cpu | quote}}
+            memory: {{ .Values.nodes.resources.limits.memory | quote }}
+            cpu: {{ .Values.nodes.resources.limits.cpu | quote }}
         ports:
         - containerPort: 5555
         env:
@@ -36,7 +36,7 @@ spec:
           - name: SE_EVENT_BUS_SUBSCRIBE_PORT
             value: "9993"
           - name: SE_NODE_MAX_SESSIONS
-            value: {{ .Values.nodes.concurrency | quote}}
+            value: {{ .Values.nodes.concurrency | quote }}
           - name: SE_NODE_OVERRIDE_MAX_SESSIONS
             value: "true"
           - name: SE_OPTS
