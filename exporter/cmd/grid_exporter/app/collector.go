@@ -128,13 +128,18 @@ func (c *GridCollector) Collect(ch chan<- prometheus.Metric) {
 		currSessions := 0
 
 		for _, node := range c.deserialized.Value.Nodes {
-			maxSessions += node.MaxSessions
+			if node.Availability != "UP" {
+				continue
+			} else {
+				maxSessions += node.MaxSessions
 
-			for _, slot := range node.Slots {
-				if slot.Session != nil {
-					currSessions++
+				for _, slot := range node.Slots {
+					if slot.Session != nil {
+						currSessions++
+					}
 				}
 			}
+
 		}
 
 		// Set number of nodes.
