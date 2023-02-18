@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: selnodepool
+  namespace: {{ .Release.namespace }}
 spec:
   replicas: {{ .Values.nodes.replicas }}
   selector:
