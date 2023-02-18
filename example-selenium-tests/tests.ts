@@ -8,7 +8,9 @@ async function runTest(){
     let title = await driver.getTitle();
     console.log("Ran test I guess " + title);
 
-    
+   
+//	await new Promise(resolve => setTimeout(resolve, 3000));
+
     let file = await driver.takeScreenshot();
     writeFileSync(`./ss/ss-${num}.png`, Buffer.from(file, 'base64'));
     await driver.quit();
