@@ -1,0 +1,139 @@
+---
+
+# -- Node management options for each selenium grid node managed by this chart.
+nodes:
+
+  # This section will provide you with an overview of theoretically, how many tests
+  # you can run concurrently with the base setup. It is simply replicas X concurrency, 
+  # and that gives you the estimated number of concurrent tests/sessions you can run 
+  # with this cluster.
+
+  # -- Specify the number of selenium node pods you want spun up as a base case.
+  replicas: 1
+
+  # -- Specify the maximum concurrency level that you want for each node pod.
+  concurrency: 1
+
+  # -- Specify the minimum number of replicas for the selenium node pod within the cluster.
+  minReplicas: 1
+
+  # -- Specify the maximum number of replicas for the selenium node pod within the cluster.
+  maxReplicas: 3
+
+  # -- Specify the scaledown stabilization window for scaling node instances.
+  stabilizationWindowSeconds: 30
+
+  # -- Utilization percentage target for scaling number of nodes up or down
+  scalingUtilizationPercentage: 80
+
+  # -- Specify the image for the node instances.
+  image: docker.io/selenium/node-chrome:latest
+
+  resources:
+    limits:
+      # -- Specify the maximum memory for every selenium node within the cluster.
+      memory: "1Gi"
+
+      # -- Specify the maximum cpu for every selenium node within the cluster.
+      cpu: "1"
+
+# -- Hub management options for the hub node managed by this chart. 
+hub:
+
+  # -- Specify the image for the hub instance.
+  image: docker.io/selenium/hub:4.8.0
+
+  resources:
+    limits:
+      # -- Specify the maximum memory for the hub instance within the cluster.
+      memory: "1Gi"
+  
+      # -- Specify the maximum cpu for the hub instance within the cluster.
+      cpu: "1"
+
+# -- Configuration for the selenium grid exporter
+exporter:
+
+  # -- Specify the image for the exporter instances.
+  image: ghcr.io/fire833/capstone/grid-exporter:latest
+
+  resources:
+    limits:
+      # -- Specify the maximum memory for the exporter instance within the cluster.
+      memory: 30Mi
+  
+      # -- Specify the maximum cpu for the exporter instance within the cluster.
+      cpu: 250m
+
+# -- Override values for the prometheus dependency chart.
+prometheus:
+
+  # Disable alertmanager since we just need prometheus for storing time-series.
+  alertmanager:
+    enabled: false
+
+  # Disable pushgateway since we just need prometheus for storing time-series.
+  prometheus-pushgateway:
+    enabled: false
+
+  # We don't need the node exporter either
+  prometheus-node-exporter:
+    enabled: false
+
+  # Or kube-state-metrics
+  kube-state-metrics:
+    enabled: false
+
+  # We can also just use an emptyDir for persistence with prometheus as well.
+  server:
+    persistentVolume:
+      enabled: false
+
+  serverFiles:
+    prometheus.yml:
+      scrape_configs:
+        - job_name: grid_exporter
+          static_configs:
+            - targets:
+              - exportersvc:8000 # TODO: factor out this port somewhere
+          scrape_interval: 1s
+
+# -- Override values for the prometheus-adapter chart.
+prometheus-adapter:
+
+  # namespaceOverride: 
+
+  # Url to access prometheus
+  prometheus:
+    # Value is templated
+    url: http://pv1-prometheus-server
+    port: 80
+    path: "/"
+
+  logLevel: 5
+
+  rules:
+    default: false
+    external:
+    - seriesQuery: "selenium_grid_num_nodes"
+      metricsQuery: "selenium_grid_num_nodes"
+      resources:
+        namespaced: false
+    - seriesQuery: "selenium_grid_num_sessions"
+      metricsQuery: "selenium_grid_num_sessions"
+      resources:
+        namespaced: false
+      name:
+        as: "selenium_grid_num_sessions"
+    - seriesQuery: "selenium_grid_max_sessions"
+      metricsQuery: "selenium_grid_max_sessions"
+      resources:
+        namespaced: false
+      name:
+        as: "selenium_grid_max_sessions"
+    - seriesQuery: '{__name__=~"^selenium_grid_.*_sessions_aggregated$"}'
+      metricsQuery: "(avg_over_time(selenium_grid_num_sessions_aggregated[10s]) / selenium_grid_max_sessions_aggregated)* 100"
+      name:
+        as: "selenium_grid_session_util_percent"
+      resources:
+        namespaced: false

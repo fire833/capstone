@@ -1,0 +1,45 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exporter
+  namespace: {{ .Release.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exporter
+  template:
+    metadata:
+      labels:
+        app: exporter
+    spec:
+      containers:
+      - name: exporter
+        image: {{ .Values.exporter.image }}
+        args:
+          - "--port"
+          - "8000"
+          - "--hub" 
+          - "http://hubsvc:9994"
+        resources:
+          limits:
+            # This process doesn't do all that much, so we can give it a little less.
+            memory: {{ .Values.exporter.resources.limits.memory | quote }}
+            cpu: {{ .Values.exporter.resources.limits.cpu | quote }}
+        ports:
+        - containerPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: exportersvc
+  namespace: {{ .Release.namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app: exporter
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: expportx

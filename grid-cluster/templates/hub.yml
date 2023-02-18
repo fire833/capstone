@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: hub
+  namespace: {{ .Release.namespace }}
 spec:
   selector:
     matchLabels:
