@@ -106,7 +106,7 @@ prometheus-adapter:
   # Url to access prometheus
   prometheus:
     # Value is templated
-    url: http://pv1-prometheus-server
+    url: http://{{ .Release.Name }}-prometheus-server
     port: 80
     path: "/"
 

@@ -5,7 +5,7 @@ metadata:
   name: hubsvc
   namespace: {{ .Release.namespace }}
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: hub
   ports:
