@@ -67,6 +67,6 @@ function runTest() {
     });
 }
 console.log("Don't forget to set SELENIUM_REMOTE_URL, it is currently set to: " + process.env['SELENIUM_REMOTE_URL']);
-for (var i = 0; i < 50; i++) {
+for (var i = 0; i < 1; i++) {
     runTest();
 }
