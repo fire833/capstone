@@ -15,6 +15,16 @@ on:
       - "*"
 
 jobs:
+  router-tests:
+    runs-on: ubuntu-latest
+    steps:
+    
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Run tests
+      run: cd hub_router_warp/ && cargo test
+
   exporter-tests:
     runs-on: ubuntu-latest
     steps:

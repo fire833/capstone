@@ -4,7 +4,11 @@ use dashmap::DashMap;
 use hyper::{Body, Client, Method, Request, Uri};
 use tokio::{task::JoinSet, time::Instant};
 
-use crate::schema::HubStatusJSONSchema;
+use crate::schema::{
+    HubStatusJSONSchema, HubStatusNodeJSONSchema, HubStatusNodeSlotIDJSONSchema,
+    HubStatusNodeSlotJSONSchema, HubStatusNodeSlotSessionJSONSchema, HubStatusOSInfoJSONSchema,
+    HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema,
+};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Hub {
@@ -25,6 +29,8 @@ impl Hub {
     }
 }
 
+/// Primary function to calculate the percentage of fullness of a hub based on its
+/// returned status API schema. Returns a value between 0 and 100.
 pub fn compute_hub_fullness(status: &HubStatusJSONSchema) -> u8 {
     let max_slots = status
         .value
@@ -43,6 +49,85 @@ pub fn compute_hub_fullness(status: &HubStatusJSONSchema) -> u8 {
     } else {
         ((running_slots * 100) / max_slots) as u8
     }
+}
+
+/// Mock function for testing to create a new HubStatusJSONSchema with
+/// the specified number of nodes, number of maxSessions on each node,
+/// and number of running sessions per node.
+fn mock_status_schema(maxSessions: u32, numNodes: u32, numRunning: u32) -> HubStatusJSONSchema {
+    let mut mock = HubStatusJSONSchema {
+        value: HubStatusValueJSONSchema {
+            ready: true,
+            message: String::from("UP"),
+            nodes: vec![],
+        },
+    };
+
+    for _ in 0..numNodes {
+        let mut node = HubStatusNodeJSONSchema {
+            id: String::from(""),
+            uri: String::from(""),
+            maxSessions: maxSessions,
+            slots: vec![],
+            availability: String::from("UP"),
+            version: String::from("undefined"),
+            osInfo: HubStatusOSInfoJSONSchema {
+                arch: String::from("x86_64"),
+                name: String::from("foo bar"),
+                version: String::from("undefined"),
+            },
+        };
+
+        for _ in 0..numRunning {
+            let session = HubStatusNodeSlotJSONSchema {
+                lastStarted: String::from("null"),
+                id: HubStatusNodeSlotIDJSONSchema {
+                    hostId: String::from("undefined"),
+                    id: String::from("undefined"),
+                },
+                session: Some(HubStatusNodeSlotSessionJSONSchema {
+                    capabilities: None,
+                    sessionId: String::from("undefined"),
+                    start: String::from("undefined"),
+                    uri: String::from(""),
+                    stereotype: HubStatusStereotypeJSONSchema {
+                        browserName: String::from("nil"),
+                        platformName: String::from("nil"),
+                    },
+                }),
+                stereotype: HubStatusStereotypeJSONSchema {
+                    browserName: String::from("nil"),
+                    platformName: String::from("nil"),
+                },
+            };
+
+            node.slots.push(session);
+        }
+
+        mock.value.nodes.push(node);
+    }
+
+    mock
+}
+
+/// Silly little test to verify the compute_hub_fullness method above.
+#[test]
+fn compute_hub_fullness_test() {
+    let t1 = HubStatusJSONSchema {
+        value: HubStatusValueJSONSchema {
+            ready: true,
+            message: String::from("UP"),
+            nodes: vec![],
+        },
+    };
+
+    let t2 = mock_status_schema(10, 15, 2);
+    let t3 = mock_status_schema(10, 10, 6);
+    let t4 = mock_status_schema(10, 10, 9);
+    assert_eq!(0, compute_hub_fullness(&t1));
+    assert_eq!(20, compute_hub_fullness(&t2));
+    assert_eq!(60, compute_hub_fullness(&t3));
+    assert_eq!(90, compute_hub_fullness(&t4));
 }
 
 #[derive(Debug)]
