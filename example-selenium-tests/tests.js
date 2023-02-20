@@ -38,16 +38,15 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 exports.__esModule = true;
 var selenium_webdriver_1 = require("selenium-webdriver");
 var fs_1 = require("fs");
-function runTest() {
+function runTest(i) {
     return __awaiter(this, void 0, void 0, function () {
-        var driver, num, title, file;
+        var driver, title, file;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0: return [4 /*yield*/, new selenium_webdriver_1.Builder().forBrowser('chrome').build()];
                 case 1:
                     driver = _a.sent();
-                    num = Math.floor(Math.random() * 100);
-                    return [4 /*yield*/, driver.get("https://google.com/search?q=newtest" + num)];
+                    return [4 /*yield*/, driver.get("about://newtest/" + i)];
                 case 2:
                     _a.sent();
                     return [4 /*yield*/, driver.getTitle()];
@@ -57,7 +56,7 @@ function runTest() {
                     return [4 /*yield*/, driver.takeScreenshot()];
                 case 4:
                     file = _a.sent();
-                    fs_1.writeFileSync("./ss/ss-" + num + ".png", Buffer.from(file, 'base64'));
+                    fs_1.writeFileSync("./ss/ss-" + i + ".png", Buffer.from(file, 'base64'));
                     return [4 /*yield*/, driver.quit()];
                 case 5:
                     _a.sent();
@@ -67,6 +66,13 @@ function runTest() {
     });
 }
 console.log("Don't forget to set SELENIUM_REMOTE_URL, it is currently set to: " + process.env['SELENIUM_REMOTE_URL']);
-for (var i = 0; i < 1; i++) {
-    runTest();
+var _loop_1 = function (i) {
+    runTest(i).then(function (res) {
+        console.log("completed test");
+    })["catch"](function (err) {
+        console.error("Error in test " + i + ":", err);
+    });
+};
+for (var i = 0; i < 500; i++) {
+    _loop_1(i);
 }
