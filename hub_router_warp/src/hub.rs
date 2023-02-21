@@ -71,7 +71,7 @@ pub fn compute_hub_fullness(status: &HubStatusJSONSchema) -> u8 {
     });
 
     if max_slots == 0 {
-        0
+        100
     } else {
         ((running_slots * 100) / max_slots) as u8
     }

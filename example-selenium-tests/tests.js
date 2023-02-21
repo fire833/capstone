@@ -40,13 +40,15 @@ var selenium_webdriver_1 = require("selenium-webdriver");
 var fs_1 = require("fs");
 function runTest(i) {
     return __awaiter(this, void 0, void 0, function () {
-        var driver, title, file;
+        var rand, driver, title, file;
         return __generator(this, function (_a) {
             switch (_a.label) {
-                case 0: return [4 /*yield*/, new selenium_webdriver_1.Builder().forBrowser('chrome').build()];
+                case 0:
+                    rand = Math.random();
+                    return [4 /*yield*/, new selenium_webdriver_1.Builder().forBrowser(rand < 0.7 ? 'chrome' : 'firefox').build()];
                 case 1:
                     driver = _a.sent();
-                    return [4 /*yield*/, driver.get("about://newtest/" + i)];
+                    return [4 /*yield*/, driver.get("https://google.com/search?q=newtest" + i)];
                 case 2:
                     _a.sent();
                     return [4 /*yield*/, driver.getTitle()];
@@ -73,6 +75,6 @@ var _loop_1 = function (i) {
         console.error("Error in test " + i + ":", err);
     });
 };
-for (var i = 0; i < 500; i++) {
+for (var i = 0; i < 100; i++) {
     _loop_1(i);
 }

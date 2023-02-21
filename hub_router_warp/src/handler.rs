@@ -18,7 +18,7 @@ use crate::{
 fn extract_sessionid(req: &Request<Body>) -> Option<String> {
     lazy_static! {
         static ref SESSION_ID_REGEXP: Regex =
-            Regex::new(r"^/session/([a-zA-Z0-9]*)(/|\z)").unwrap();
+            Regex::new(r"^/session/([^/]*)(/|\z)").unwrap();
     }
 
     match req.uri().path_and_query() {
@@ -135,6 +135,18 @@ async fn forward_request(
     HubRouterError::wrap_err(client.request(req).await)
 }
 
+async fn handle_delete_session_request(
+    req: Request<Body>,
+    routing_map: Arc<RoutingPrecedentMap>,
+    _endpoint_map: Arc<DashMap<Endpoint, Hub>>,
+) -> Result<Response<Body>, HubRouterError> {
+    let session_id = extract_sessionid(&req);
+    let result = forward_request(req, routing_map.clone(), _endpoint_map).await;
+    routing_map.remove(&session_id.unwrap());
+    result
+}
+
+
 pub async fn handle(
     req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
@@ -148,7 +160,7 @@ pub async fn handle(
             // handle new sessions differently
             return handle_new_session_request(req, routing_map, endpoint_map).await;
         } else if is_delete_session(&req) && maybe_session_id.is_some() {
-            routing_map.remove(&maybe_session_id.unwrap());
+            return handle_delete_session_request(req, routing_map, endpoint_map).await;
         }
         return forward_request(req, routing_map, endpoint_map).await;
     }
