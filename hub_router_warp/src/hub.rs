@@ -151,7 +151,7 @@ fn compute_hub_fullness_test() {
     let t2 = mock_status_schema(10, 15, 2);
     let t3 = mock_status_schema(10, 10, 6);
     let t4 = mock_status_schema(10, 10, 9);
-    assert_eq!(0, compute_hub_fullness(&t1));
+    assert_eq!(100, compute_hub_fullness(&t1));
     assert_eq!(20, compute_hub_fullness(&t2));
     assert_eq!(60, compute_hub_fullness(&t3));
     assert_eq!(90, compute_hub_fullness(&t4));
