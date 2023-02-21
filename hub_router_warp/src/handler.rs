@@ -17,8 +17,7 @@ use crate::{
 
 fn extract_sessionid(req: &Request<Body>) -> Option<String> {
     lazy_static! {
-        static ref SESSION_ID_REGEXP: Regex =
-            Regex::new(r"^/session/([^/]*)(/|\z)").unwrap();
+        static ref SESSION_ID_REGEXP: Regex = Regex::new(r"^/session/([^/]*)(/|\z)").unwrap();
     }
 
     match req.uri().path_and_query() {
@@ -145,7 +144,6 @@ async fn handle_delete_session_request(
     routing_map.remove(&session_id.unwrap());
     result
 }
-
 
 pub async fn handle(
     req: Request<Body>,

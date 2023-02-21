@@ -5,7 +5,7 @@ pub enum RoutingError {
     NoHealthyNodes(String),
     UnableToSatisfyCapabilities(String),
     MalformedRequestPath(String),
-    NoCapacity(String)
+    NoCapacity(String),
 }
 
 #[derive(Debug)]

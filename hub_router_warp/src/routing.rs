@@ -58,29 +58,31 @@ pub fn make_routing_decision(
     let healthy_hubs: Vec<_> = healthy_hubs_iter.collect();
 
     // get a list of hubs which satisfy the request
-    let potential_hubs: Option<Vec<&RefMulti<Endpoint, Hub>>> = match &optional_requested_capabilities {
-        None => Some(healthy_hubs.iter().collect()),
-        Some(requested_capabilities) => {
-            let mut satisfying_hubs: Option<Vec<&RefMulti<Endpoint, Hub>>> = None;
-            for capability in requested_capabilities {
-                let can_satisfy: Vec<_> = healthy_hubs.iter().filter(|h| h.can_satisfy_capability(capability)).collect();
-                if can_satisfy.len() > 0 {
-                    satisfying_hubs = Some(can_satisfy);
-                    break;
+    let potential_hubs: Option<Vec<&RefMulti<Endpoint, Hub>>> =
+        match &optional_requested_capabilities {
+            None => Some(healthy_hubs.iter().collect()),
+            Some(requested_capabilities) => {
+                let mut satisfying_hubs: Option<Vec<&RefMulti<Endpoint, Hub>>> = None;
+                for capability in requested_capabilities {
+                    let can_satisfy: Vec<_> = healthy_hubs
+                        .iter()
+                        .filter(|h| h.can_satisfy_capability(capability))
+                        .collect();
+                    if can_satisfy.len() > 0 {
+                        satisfying_hubs = Some(can_satisfy);
+                        break;
+                    }
                 }
+                satisfying_hubs
             }
-            satisfying_hubs
-        }
-    };
+        };
 
     match potential_hubs {
         Some(hubs) => {
-
             let keys_and_weights: Vec<_> = hubs
                 .iter()
                 .map(|h| (h.key(), (100 - h.fullness) as u32))
                 .collect();
-
 
             let weight_sum = keys_and_weights
                 .iter()
