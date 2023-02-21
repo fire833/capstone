@@ -1,14 +1,18 @@
 use dashmap::DashMap;
-use hyper::{Body, Client, Method, Request, Response, Uri};
+use hyper::{Body, Client, Method, Request, Response};
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::{net::IpAddr, sync::Arc};
+use std::sync::Arc;
 use tokio::time::Instant;
 
 use crate::{
+    error::HubRouterError,
     hub::Hub,
-    routing::{make_routing_decision, RoutingDecision, RoutingPrecedentMap},
-    schema::NewSessionResponse,
+    routing::{
+        apply_routing_decision, make_routing_decision, Endpoint, RoutingDecision,
+        RoutingPrecedentMap,
+    },
+    schema::{NewSessionRequestBody, NewSessionRequestCapability, NewSessionResponse},
 };
 
 fn extract_sessionid(req: &Request<Body>) -> Option<String> {
@@ -38,6 +42,35 @@ fn extract_sessionid(req: &Request<Body>) -> Option<String> {
     }
 }
 
+pub async fn extract_capabilities_from_new_session_request(
+    request: Request<Body>,
+) -> Result<(Vec<NewSessionRequestCapability>, Request<Body>), HubRouterError> {
+    let (parts, body) = request.into_parts();
+    let body_bytes = hyper::body::to_bytes(body).await?;
+
+    let capability_request: NewSessionRequestBody = serde_json::from_slice(&body_bytes)?;
+    let possible_requests = generate_possible_capabilities(capability_request);
+
+    let reconstructed_request = hyper::Request::from_parts(parts, hyper::Body::from(body_bytes));
+    return Ok((possible_requests, reconstructed_request));
+}
+
+fn generate_possible_capabilities(
+    capability_request: NewSessionRequestBody,
+) -> Vec<NewSessionRequestCapability> {
+    capability_request
+        .capabilities
+        .firstMatch
+        .iter()
+        .map(|first_match| {
+            let mut base = capability_request.capabilities.alwaysMatch.clone();
+            base.browserName = base.browserName.or(first_match.browserName.clone());
+            base.platformName = base.platformName.or(first_match.platformName.clone());
+            base
+        })
+        .collect()
+}
+
 fn is_request_new_session(req: &Request<Body>) -> bool {
     return req.method() == Method::POST
         && req.uri().path_and_query().is_some()
@@ -56,103 +89,80 @@ fn is_delete_session(req: &Request<Body>) -> bool {
 }
 
 async fn handle_new_session_request(
-    req: Request<Body>,
+    mut req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
-    _endpoint_map: Arc<DashMap<(IpAddr, u16), Hub>>,
-    routing_decision: (IpAddr, u16),
-) -> Result<Response<Body>, hyper::Error> {
-    let client = Client::new();
-    let result = client.request(req).await;
+    endpoint_map: Arc<DashMap<Endpoint, Hub>>,
+) -> Result<Response<Body>, HubRouterError> {
+    let (requests, reconstructed_request) =
+        extract_capabilities_from_new_session_request(req).await?;
+    req = reconstructed_request;
 
-    match result {
-        Ok(response) => {
-            let (parts, body) = response.into_parts();
-            let bytes_result = hyper::body::to_bytes(body).await;
-            match bytes_result {
-                Err(e) => {
-                    eprintln!("Error converting body buffer: {}", e);
-                    Err(e)
-                }
-                Ok(bytes) => {
-                    let parsed: Result<NewSessionResponse, _> = serde_json::from_slice(&bytes);
-                    match parsed {
-                        Ok(new_session_response) => {
-                            println!("Making a routing decision from the session response");
-                            let session_id = new_session_response.value.sessionId;
-                            routing_map.insert(
-                                session_id,
-                                RoutingDecision::new(routing_decision, Instant::now()),
-                            );
-                        }
-                        Err(parse_error) => {
-                            eprintln!(
-                                "Error parsing NewSessionResponse: {} | {}",
-                                parse_error,
-                                String::from_utf8_lossy(&bytes)
-                            )
-                        }
-                    }
-                    Ok(hyper::Response::from_parts(parts, hyper::Body::from(bytes)))
-                }
-            }
-        }
-        Err(e) => Err(e),
-    }
+    let (ip, port) = make_routing_decision(
+        None,
+        Some(requests),
+        routing_map.clone(),
+        endpoint_map.clone(),
+    )?;
+
+    apply_routing_decision(&mut req, &(ip, port))?;
+
+    let client = Client::new();
+    let response = client.request(req).await?;
+
+    let (parts, body) = response.into_parts();
+    let bytes = hyper::body::to_bytes(body).await?;
+    println!(
+        "Got new session response: {}",
+        String::from_utf8_lossy(&bytes)
+    );
+    let new_session_response: NewSessionResponse = serde_json::from_slice(&bytes)?;
+    let session_id = new_session_response.value.sessionId;
+    routing_map.insert(session_id, RoutingDecision::new((ip, port), Instant::now()));
+    Ok(hyper::Response::from_parts(parts, hyper::Body::from(bytes)))
 }
 
 async fn forward_request(
-    req: Request<Body>,
+    mut req: Request<Body>,
     _routing_map: Arc<RoutingPrecedentMap>,
-    _endpoint_map: Arc<DashMap<(IpAddr, u16), Hub>>,
-) -> Result<Response<Body>, hyper::Error> {
+    _endpoint_map: Arc<DashMap<Endpoint, Hub>>,
+) -> Result<Response<Body>, HubRouterError> {
+    let maybe_session_id = extract_sessionid(&req);
+    let routing_decision =
+        make_routing_decision(maybe_session_id, None, _routing_map, _endpoint_map)?;
+    apply_routing_decision(&mut req, &routing_decision)?;
+
     let client = Client::new();
-    client.request(req).await
+    HubRouterError::wrap_err(client.request(req).await)
 }
 
 pub async fn handle(
     req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
-    endpoint_map: Arc<DashMap<(IpAddr, u16), Hub>>,
+    endpoint_map: Arc<DashMap<Endpoint, Hub>>,
 ) -> Result<Response<Body>, hyper::Error> {
     println!("Got req uri: {:#?}", req.uri());
-
     let maybe_session_id = extract_sessionid(&req);
 
-    let (ip, port) = make_routing_decision(
-        maybe_session_id.clone(),
-        routing_map.clone(),
-        endpoint_map.clone(),
-    );
-
-    let path_string = match req.uri().path_and_query() {
-        Some(p_q) => p_q.to_string(),
-        None => {
-            panic!("Request had no path: {:#?}", req);
+    let response: Result<Response<Body>, HubRouterError> = async {
+        if is_request_new_session(&req) {
+            // handle new sessions differently
+            return handle_new_session_request(req, routing_map, endpoint_map).await;
+        } else if is_delete_session(&req) && maybe_session_id.is_some() {
+            routing_map.remove(&maybe_session_id.unwrap());
         }
-    };
-
-    println!("Got routing decision: {}:{}", ip, port);
-    let endpoint_uri_result = Uri::builder()
-        .scheme("http")
-        .authority(format!("{}:{}", ip, port))
-        .path_and_query(path_string)
-        .build();
-
-    let endpoint_uri = match endpoint_uri_result {
-        Ok(uri) => uri,
-        Err(e) => {
-            panic!("Could not create endpoint uri: {}", e);
-        }
-    };
-
-    let mut req = req;
-    *req.uri_mut() = endpoint_uri;
-
-    if is_request_new_session(&req) {
-        // handle new sessions differently
-        return handle_new_session_request(req, routing_map, endpoint_map, (ip, port)).await;
-    } else if is_delete_session(&req) && maybe_session_id.is_some() {
-        routing_map.remove(&maybe_session_id.unwrap());
+        return forward_request(req, routing_map, endpoint_map).await;
     }
-    return forward_request(req, routing_map, endpoint_map).await;
+    .await;
+
+    // TODO: General Error Handling
+    match response {
+        Ok(response) => {
+            Ok(response)
+        },
+        Err(e) => {
+            Ok(
+                Response::builder().status(500).body(Body::from(format!("Hub Router error: {:#?}", e))).unwrap()
+            )
+        },
+    }
 }

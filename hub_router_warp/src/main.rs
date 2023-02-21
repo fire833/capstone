@@ -3,7 +3,7 @@ use dashmap::DashMap;
 use handler::handle;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
-use routing::RoutingPrecedentMap;
+use routing::{RoutingPrecedentMap, Endpoint};
 use tokio::time::{self, Instant};
 
 use std::convert::Infallible;
@@ -18,6 +18,7 @@ mod handler;
 mod hub;
 mod routing;
 mod schema;
+mod error;
 
 #[derive(clap::Parser, Debug)]
 
@@ -35,10 +36,10 @@ struct Args {
     /// Can be used multiple times.
     /// example: --endpoint 192.168.1.1:1234 --endpoint 192.168.1.2:4321
     #[arg(long, value_parser=parse_ip)]
-    endpoint: Vec<(IpAddr, u16)>,
+    endpoint: Vec<Endpoint>,
 }
 
-fn parse_ip(s: &str) -> Result<(IpAddr, u16), String> {
+fn parse_ip(s: &str) -> Result<Endpoint, String> {
     let mut split = s.split(":");
     let split_ip = split.next();
     let split_port = split.next();
@@ -78,7 +79,7 @@ async fn main() {
         .iter()
         .map(|(ip, port)| Hub::new(ip.clone(), port.clone()))
         .collect();
-    let _hubs: DashMap<(IpAddr, u16), Hub> = DashMap::new();
+    let _hubs: DashMap<Endpoint, Hub> = DashMap::new();
     for h in _hubs_list {
         _hubs.insert((h.ip, h.port), h);
     }

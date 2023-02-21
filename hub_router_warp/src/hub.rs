@@ -1,21 +1,29 @@
-use std::{net::IpAddr, sync::Arc, time::Duration};
+use std::{collections::HashSet, net::IpAddr, sync::Arc, time::Duration};
 
 use dashmap::DashMap;
 use hyper::{Body, Client, Method, Request, Uri};
-use tokio::{task::JoinSet, time::Instant};
+use tokio::{task::JoinSet};
 
-use crate::schema::{
+use crate::{schema::{
     HubStatusJSONSchema, HubStatusNodeJSONSchema, HubStatusNodeSlotIDJSONSchema,
     HubStatusNodeSlotJSONSchema, HubStatusNodeSlotSessionJSONSchema, HubStatusOSInfoJSONSchema,
-    HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema,
-};
+    HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema, NewSessionRequestCapability,
+}, routing::Endpoint};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum HubReadiness {
+    Unhealthy,          // not responding to /status requests
+    HealthyButNotReady, // responds to /status requests but the ready response is false
+    Ready,              // response to /status with ready: true
+}
+
+#[derive(Debug, Clone)]
 pub struct Hub {
     pub port: u16,
     pub ip: IpAddr,
     pub fullness: u8,
-    pub last_healthy: Option<Instant>,
+    pub stereotypes: HashSet<HubStatusStereotypeJSONSchema>,
+    pub readiness: HubReadiness,
 }
 
 impl Hub {
@@ -24,8 +32,23 @@ impl Hub {
             ip,
             port,
             fullness: 0,
-            last_healthy: None,
+            stereotypes: HashSet::new(),
+            readiness: HubReadiness::Unhealthy,
         }
+    }
+
+    pub fn can_satisfy_capability(&self, capability: &NewSessionRequestCapability) -> bool {
+        self.stereotypes.iter().any(|stereotype| {
+            let satisfies_browser = capability.browserName.is_none()
+                || (&stereotype.browserName)
+                    .eq_ignore_ascii_case(capability.browserName.as_ref().unwrap());
+
+            let satisfies_platform_name = capability.platformName.is_none()
+                || (&stereotype.platformName)
+                    .eq_ignore_ascii_case(capability.platformName.as_ref().unwrap());
+                
+            satisfies_browser && satisfies_platform_name
+        })
     }
 }
 
@@ -54,7 +77,8 @@ pub fn compute_hub_fullness(status: &HubStatusJSONSchema) -> u8 {
 /// Mock function for testing to create a new HubStatusJSONSchema with
 /// the specified number of nodes, number of maxSessions on each node,
 /// and number of running sessions per node.
-fn mock_status_schema(maxSessions: u32, numNodes: u32, numRunning: u32) -> HubStatusJSONSchema {
+#[allow(unused)]
+fn mock_status_schema(max_sessions: u32, num_nodes: u32, num_running: u32) -> HubStatusJSONSchema {
     let mut mock = HubStatusJSONSchema {
         value: HubStatusValueJSONSchema {
             ready: true,
@@ -63,11 +87,11 @@ fn mock_status_schema(maxSessions: u32, numNodes: u32, numRunning: u32) -> HubSt
         },
     };
 
-    for _ in 0..numNodes {
+    for _ in 0..num_nodes {
         let mut node = HubStatusNodeJSONSchema {
             id: String::from(""),
             uri: String::from(""),
-            maxSessions: maxSessions,
+            maxSessions: max_sessions,
             slots: vec![],
             availability: String::from("UP"),
             version: String::from("undefined"),
@@ -78,7 +102,7 @@ fn mock_status_schema(maxSessions: u32, numNodes: u32, numRunning: u32) -> HubSt
             },
         };
 
-        for _ in 0..numRunning {
+        for _ in 0..num_running {
             let session = HubStatusNodeSlotJSONSchema {
                 lastStarted: String::from("null"),
                 id: HubStatusNodeSlotIDJSONSchema {
@@ -136,7 +160,7 @@ enum HealthcheckErr {
     HyperError(hyper::Error),
 }
 
-pub async fn hub_healthcheck_thread(hubs: Arc<DashMap<(IpAddr, u16), Hub>>) {
+pub async fn hub_healthcheck_thread(hubs: Arc<DashMap<Endpoint, Hub>>) {
     println!("called hub healthcheck thread");
     let mut healthcheck_interval = tokio::time::interval(Duration::from_secs(1));
     loop {
@@ -147,7 +171,7 @@ pub async fn hub_healthcheck_thread(hubs: Arc<DashMap<(IpAddr, u16), Hub>>) {
         )> = {
             let mut join_set: JoinSet<(IpAddr, u16, Result<HubStatusJSONSchema, HealthcheckErr>)> =
                 JoinSet::new();
-            let endpoints: Vec<(IpAddr, u16)> = hubs
+            let endpoints: Vec<Endpoint> = hubs
                 .iter()
                 .map(|h| (h.ip.clone(), h.port.clone()))
                 .collect();
@@ -195,17 +219,39 @@ pub async fn hub_healthcheck_thread(hubs: Arc<DashMap<(IpAddr, u16), Hub>>) {
                 Ok((ip, port, status_result)) => {
                     match status_result {
                         Ok(parsed_status) => {
-                            let new_hub = Hub {
-                                ip,
-                                port,
-                                fullness: compute_hub_fullness(&parsed_status),
-                                last_healthy: Some(Instant::now()),
-                            };
-                            hubs.insert((ip, port), new_hub);
-                            // println!("Inserted new hub: {:#?}", new_hub);
+                            let is_ready = parsed_status.value.ready;
+                            match hubs.get_mut(&(ip, port)) {
+                                Some(mut hub) => {
+                                    hub.fullness = compute_hub_fullness(&parsed_status);
+                                    hub.readiness = if is_ready {
+                                        HubReadiness::Ready
+                                    } else {
+                                        HubReadiness::HealthyButNotReady
+                                    };
+                                    parsed_status.value.nodes.iter().for_each(|node| {
+                                        node.slots.iter().for_each(|slot| {
+                                            if !hub.stereotypes.contains(&slot.stereotype) {
+                                                hub.stereotypes.insert(slot.stereotype.clone());
+                                            }
+                                        })
+                                    });
+                                    // println!("Updated hub: {:#?}", hub.value());
+                                }
+                                None => {
+                                    eprintln!("[WARN] Somehow, a hub which we performed a healthcheck for is not in the map?")
+                                }
+                            }
                         }
                         Err(healthcheck_err) => {
                             eprintln!("Got healthcheck err: {:#?}", healthcheck_err);
+                            match hubs.get_mut(&(ip, port)) {
+                                Some(mut hub) => {
+                                    hub.readiness = HubReadiness::Unhealthy;
+                                }
+                                None => {
+                                    eprintln!("[WARN] Somehow, a hub which we performed a healthcheck for is not in the map?")
+                                }
+                            }
                         }
                     }
                 }

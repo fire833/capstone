@@ -1,19 +1,19 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[allow(non_snake_case, unused)]
 pub struct NewSessionResponse {
     pub value: NewSessionResponseValue,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[allow(non_snake_case, unused)]
 pub struct NewSessionResponseValue {
     pub sessionId: String,
-    pub capabilities: Option<NewSessionResponseCapabilities>,
+    pub capabilities: NewSessionResponseCapabilities,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[allow(non_snake_case, unused)]
 pub struct NewSessionResponseCapabilities {
     pub acceptInsecureCerts: Option<bool>,
@@ -22,19 +22,19 @@ pub struct NewSessionResponseCapabilities {
     pub platformName: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HubStatusJSONSchema {
     pub value: HubStatusValueJSONSchema,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HubStatusValueJSONSchema {
     pub ready: bool,
     pub message: String,
     pub nodes: Vec<HubStatusNodeJSONSchema>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[allow(non_snake_case)]
 pub struct HubStatusNodeJSONSchema {
     pub id: String,
@@ -46,14 +46,14 @@ pub struct HubStatusNodeJSONSchema {
     pub slots: Vec<HubStatusNodeSlotJSONSchema>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HubStatusOSInfoJSONSchema {
     pub arch: String,
     pub name: String,
     pub version: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[allow(non_snake_case)]
 pub struct HubStatusNodeSlotJSONSchema {
     pub id: HubStatusNodeSlotIDJSONSchema,
@@ -62,7 +62,7 @@ pub struct HubStatusNodeSlotJSONSchema {
     pub stereotype: HubStatusStereotypeJSONSchema,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[allow(non_snake_case)]
 
 pub struct HubStatusNodeSlotIDJSONSchema {
@@ -70,7 +70,7 @@ pub struct HubStatusNodeSlotIDJSONSchema {
     pub id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[allow(non_snake_case)]
 
 pub struct HubStatusNodeSlotSessionJSONSchema {
@@ -81,7 +81,7 @@ pub struct HubStatusNodeSlotSessionJSONSchema {
     pub uri: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[allow(non_snake_case)]
 
 pub struct HubStatusNodeSlotSessionCapabilitiesJSONSchema {
@@ -90,10 +90,39 @@ pub struct HubStatusNodeSlotSessionCapabilitiesJSONSchema {
     pub browserVersion: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[allow(non_snake_case)]
 
 pub struct HubStatusStereotypeJSONSchema {
     pub browserName: String,
     pub platformName: String,
 }
+
+
+
+
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[allow(non_snake_case)]
+
+pub struct NewSessionRequestBody {
+    pub capabilities: NewSessionRequestCapabilities
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[allow(non_snake_case)]
+
+pub struct NewSessionRequestCapabilities {
+    pub alwaysMatch: NewSessionRequestCapability,
+    pub firstMatch: Vec<NewSessionRequestCapability>
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[allow(non_snake_case)]
+
+pub struct NewSessionRequestCapability {
+    pub browserName: Option<String>,
+    pub platformName: Option<String>
+}
+
+
+
