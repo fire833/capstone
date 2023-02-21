@@ -3,7 +3,7 @@ use dashmap::DashMap;
 use handler::handle;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
-use routing::{RoutingPrecedentMap, Endpoint};
+use routing::{Endpoint, RoutingPrecedentMap};
 use tokio::time::{self, Instant};
 
 use std::convert::Infallible;
@@ -14,11 +14,11 @@ use std::time::Duration;
 
 use crate::hub::{hub_healthcheck_thread, Hub};
 
+mod error;
 mod handler;
 mod hub;
 mod routing;
 mod schema;
-mod error;
 
 #[derive(clap::Parser, Debug)]
 

@@ -156,13 +156,10 @@ pub async fn handle(
 
     // TODO: General Error Handling
     match response {
-        Ok(response) => {
-            Ok(response)
-        },
-        Err(e) => {
-            Ok(
-                Response::builder().status(500).body(Body::from(format!("Hub Router error: {:#?}", e))).unwrap()
-            )
-        },
+        Ok(response) => Ok(response),
+        Err(e) => Ok(Response::builder()
+            .status(500)
+            .body(Body::from(format!("Hub Router error: {:#?}", e)))
+            .unwrap()),
     }
 }

@@ -2,13 +2,16 @@ use std::{collections::HashSet, net::IpAddr, sync::Arc, time::Duration};
 
 use dashmap::DashMap;
 use hyper::{Body, Client, Method, Request, Uri};
-use tokio::{task::JoinSet};
+use tokio::task::JoinSet;
 
-use crate::{schema::{
-    HubStatusJSONSchema, HubStatusNodeJSONSchema, HubStatusNodeSlotIDJSONSchema,
-    HubStatusNodeSlotJSONSchema, HubStatusNodeSlotSessionJSONSchema, HubStatusOSInfoJSONSchema,
-    HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema, NewSessionRequestCapability,
-}, routing::Endpoint};
+use crate::{
+    routing::Endpoint,
+    schema::{
+        HubStatusJSONSchema, HubStatusNodeJSONSchema, HubStatusNodeSlotIDJSONSchema,
+        HubStatusNodeSlotJSONSchema, HubStatusNodeSlotSessionJSONSchema, HubStatusOSInfoJSONSchema,
+        HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema, NewSessionRequestCapability,
+    },
+};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum HubReadiness {
@@ -46,7 +49,7 @@ impl Hub {
             let satisfies_platform_name = capability.platformName.is_none()
                 || (&stereotype.platformName)
                     .eq_ignore_ascii_case(capability.platformName.as_ref().unwrap());
-                
+
             satisfies_browser && satisfies_platform_name
         })
     }

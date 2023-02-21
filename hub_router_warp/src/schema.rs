@@ -98,14 +98,11 @@ pub struct HubStatusStereotypeJSONSchema {
     pub platformName: String,
 }
 
-
-
-
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 #[allow(non_snake_case)]
 
 pub struct NewSessionRequestBody {
-    pub capabilities: NewSessionRequestCapabilities
+    pub capabilities: NewSessionRequestCapabilities,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
@@ -113,7 +110,7 @@ pub struct NewSessionRequestBody {
 
 pub struct NewSessionRequestCapabilities {
     pub alwaysMatch: NewSessionRequestCapability,
-    pub firstMatch: Vec<NewSessionRequestCapability>
+    pub firstMatch: Vec<NewSessionRequestCapability>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
@@ -121,8 +118,5 @@ pub struct NewSessionRequestCapabilities {
 
 pub struct NewSessionRequestCapability {
     pub browserName: Option<String>,
-    pub platformName: Option<String>
+    pub platformName: Option<String>,
 }
-
-
-

@@ -43,16 +43,16 @@ pub fn make_routing_decision(
 
     println!("Making a routing decision for the first time!");
 
+    let mut healthy_hubs = endpoint_state_map
+        .iter()
+        .filter(|h| h.readiness == HubReadiness::Ready)
+        .peekable();
 
-
-    let mut healthy_hubs = endpoint_state_map.iter().filter(|h| h.readiness == HubReadiness::Ready).peekable();
-            
     if healthy_hubs.peek().is_none() {
-        return Err(
-            RoutingError::NoHealthyNodes("There are no healthy hubs to serve requests to".to_string())
-        )
+        return Err(RoutingError::NoHealthyNodes(
+            "There are no healthy hubs to serve requests to".to_string(),
+        ));
     }
-
 
     // get a list of hubs which satisfy the request
     let potential_hubs = match &optional_requested_capabilities {
@@ -60,9 +60,14 @@ pub fn make_routing_decision(
         Some(requested_capabilities) => {
             let mut satisfying_hubs: Option<Vec<RefMulti<Endpoint, Hub>>> = None;
             for capability in requested_capabilities {
-                let is_satisfiable = healthy_hubs.any(|pair| pair.value().can_satisfy_capability(&capability));
+                let is_satisfiable =
+                    healthy_hubs.any(|pair| pair.value().can_satisfy_capability(&capability));
                 if is_satisfiable {
-                    satisfying_hubs = Some(healthy_hubs.filter(|pair| pair.value().can_satisfy_capability(&capability)).collect());
+                    satisfying_hubs = Some(
+                        healthy_hubs
+                            .filter(|pair| pair.value().can_satisfy_capability(&capability))
+                            .collect(),
+                    );
                     break;
                 }
             }

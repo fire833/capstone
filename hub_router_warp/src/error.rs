@@ -1,13 +1,10 @@
 use std::fmt::Debug;
 
-
-
-
 #[derive(Debug)]
 pub enum RoutingError {
     NoHealthyNodes(String),
     UnableToSatisfyCapabilities(String),
-    MalformedRequestPath(String)
+    MalformedRequestPath(String),
 }
 
 #[derive(Debug)]
@@ -15,17 +12,19 @@ pub enum HubRouterError {
     RoutingError(RoutingError),
     HyperError(hyper::Error),
     DeserializationError(serde_json::Error),
-    Internal(String)
+    Internal(String),
 }
 
-impl HubRouterError{
-    pub fn wrap_err<T, E>(result: Result<T, E>) -> Result<T, HubRouterError>  where E: Debug + Into<HubRouterError>  {
+impl HubRouterError {
+    pub fn wrap_err<T, E>(result: Result<T, E>) -> Result<T, HubRouterError>
+    where
+        E: Debug + Into<HubRouterError>,
+    {
         match result {
             Ok(res) => Ok(res),
             Err(e) => Err(e.into()),
         }
     }
-
 }
 
 impl From<RoutingError> for HubRouterError {
