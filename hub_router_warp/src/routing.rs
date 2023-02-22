@@ -86,14 +86,7 @@ pub fn make_routing_decision(
 
             let weight_sum = keys_and_weights
                 .iter()
-                .fold(0, |acc: u32, (_, weight)| acc + weight);
-
-            if weight_sum == 0 {
-                return Err(RoutingError::NoCapacity(String::from(format!(
-                    "No hubs had capacity which could satisfy given capabilities: {:?}",
-                    &optional_requested_capabilities
-                ))));
-            }
+                .fold(0, |acc: u32, (_, weight)| acc + weight + 1);
 
             let selection_weight_distance: u32 = random::<u32>() % weight_sum;
             let mut accumulated_weight: u32 = 0;
