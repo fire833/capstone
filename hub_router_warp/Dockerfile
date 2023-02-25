@@ -1,7 +1,9 @@
 
-FROM docker.io/rust:alpine AS builder
+FROM docker.io/rust:latest AS builder
 
-ADD . /usr/src/hub_router_warp
+ADD src /usr/src/hub_router_warp/src
+ADD Cargo.lock /usr/src/hub_router_warp
+ADD Cargo.toml /usr/src/hub_router_warp
 WORKDIR /usr/src/hub_router_warp
 
 RUN cargo build --release
