@@ -8,7 +8,7 @@ variable "gke_password" {
   descript = "gke_password"
 }
 
-resource "google_container_cluster" "primary" {
+resource "google_container_cluster" "gke" {
   # Define in different TF file ?
   name = ""
   location = ""
@@ -22,11 +22,11 @@ resource "google_container_cluster" "primary" {
 }
 
 # May need to use one of the helm charts for this
-resource "google_container_node_pool" "primary_nodes" {
+resource "google_container_node_pool" "gke_nodes" {
 
   name = 
   location = 
-  cluster = 
+  cluster = google_container_cluster.gke
   node_count = 
 
   node_config {
