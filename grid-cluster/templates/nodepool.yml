@@ -1,28 +1,35 @@
+{{- if .Values.nodes.chrome.enabled }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: selnodepool
+  name: selenium-chrome-nodes
   namespace: {{ .Release.namespace }}
+  labels:
+    app: selenium-nodes
+    browser: selenium-chrome-nodes
 spec:
-  replicas: {{ .Values.nodes.replicas }}
+  replicas: {{ .Values.nodes.chrome.replicas }}
   selector:
     matchLabels:
-      app: selnodepool
+      app: selenium-nodes
+      browser: selenium-chrome-nodes
   template:
     metadata:
       labels:
-        app: selnodepool
+        app: selenium-nodes
+        browser: selenium-chrome-nodes
     spec:
       volumes:
       - name: dshm
         emptyDir:
           medium: Memory
       containers:
-      - name: selnodepool
+      - name: selenium-chrome-nodes
         volumeMounts:
         - mountPath: /dev/shm
           name: dshm
-        image: {{ .Values.nodes.image }}
+        image: {{ .Values.nodes.chrome.image }}
         resources:
           limits:
             memory: {{ .Values.nodes.resources.limits.memory | quote }}
@@ -37,8 +44,113 @@ spec:
           - name: SE_EVENT_BUS_SUBSCRIBE_PORT
             value: "9993"
           - name: SE_NODE_MAX_SESSIONS
-            value: {{ .Values.nodes.concurrency | quote }}
+            value: {{ .Values.nodes.chrome.concurrency | quote }}
           - name: SE_NODE_OVERRIDE_MAX_SESSIONS
             value: "true"
           - name: SE_OPTS
             value: "--log-level FINE --heartbeat-period 5 --session-timeout 60"
+{{- end }}
+{{- if .Values.nodes.edge.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: selenium-edge-nodes
+  namespace: {{ .Release.namespace }}
+  labels:
+    app: selenium-nodes
+    browser: selenium-edge-nodes
+spec:
+  replicas: {{ .Values.nodes.edge.replicas }}
+  selector:
+    matchLabels:
+      app: selenium-nodes
+      browser: selenium-edge-nodes
+  template:
+    metadata:
+      labels:
+        app: selenium-nodes
+        browser: selenium-edge-nodes
+    spec:
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+      containers:
+      - name: selenium-edge-nodes
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: dshm
+        image: {{ .Values.nodes.edge.image }}
+        resources:
+          limits:
+            memory: {{ .Values.nodes.resources.limits.memory | quote }}
+            cpu: {{ .Values.nodes.resources.limits.cpu | quote }}
+        ports:
+        - containerPort: 5555
+        env:
+          - name: SE_EVENT_BUS_HOST
+            value: "hubsvc.default"
+          - name: SE_EVENT_BUS_PUBLISH_PORT
+            value: "9992"
+          - name: SE_EVENT_BUS_SUBSCRIBE_PORT
+            value: "9993"
+          - name: SE_NODE_MAX_SESSIONS
+            value: {{ .Values.nodes.edge.concurrency | quote }}
+          - name: SE_NODE_OVERRIDE_MAX_SESSIONS
+            value: "true"
+          - name: SE_OPTS
+            value: "--log-level FINE --heartbeat-period 5 --session-timeout 60"
+{{- end }}
+{{- if .Values.nodes.firefox.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: selenium-firefox-nodes
+  namespace: {{ .Release.namespace }}
+  labels:
+    app: selenium-nodes
+    browser: selenium-firefox-nodes
+spec:
+  replicas: {{ .Values.nodes.firefox.replicas }}
+  selector:
+    matchLabels:
+      app: selenium-nodes
+      browser: selenium-firefox-nodes
+  template:
+    metadata:
+      labels:
+        app: selenium-nodes
+        browser: selenium-firefox-nodes
+    spec:
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+      containers:
+      - name: selenium-firefox-nodes
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: dshm
+        image: {{ .Values.nodes.firefox.image }}
+        resources:
+          limits:
+            memory: {{ .Values.nodes.resources.limits.memory | quote }}
+            cpu: {{ .Values.nodes.resources.limits.cpu | quote }}
+        ports:
+        - containerPort: 5555
+        env:
+          - name: SE_EVENT_BUS_HOST
+            value: "hubsvc.default"
+          - name: SE_EVENT_BUS_PUBLISH_PORT
+            value: "9992"
+          - name: SE_EVENT_BUS_SUBSCRIBE_PORT
+            value: "9993"
+          - name: SE_NODE_MAX_SESSIONS
+            value: {{ .Values.nodes.firefox.concurrency | quote }}
+          - name: SE_NODE_OVERRIDE_MAX_SESSIONS
+            value: "true"
+          - name: SE_OPTS
+            value: "--log-level FINE --heartbeat-period 5 --session-timeout 60"
+{{- end }}

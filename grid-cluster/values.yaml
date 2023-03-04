@@ -8,26 +8,80 @@ nodes:
   # and that gives you the estimated number of concurrent tests/sessions you can run 
   # with this cluster.
 
-  # -- Specify the number of selenium node pods you want spun up as a base case.
-  replicas: 1
+  chrome:
+    # -- Toggle whether chrome nodes should be spun up with the cluster.
+    enabled: true
 
-  # -- Specify the maximum concurrency level that you want for each node pod.
-  concurrency: 1
+    # -- Specify the number of chrome node pods you want spun up as a base case.
+    replicas: 1
 
-  # -- Specify the minimum number of replicas for the selenium node pod within the cluster.
-  minReplicas: 1
+    # -- Specify the maximum concurrency level that you want for each node pod.
+    concurrency: 1
 
-  # -- Specify the maximum number of replicas for the selenium node pod within the cluster.
-  maxReplicas: 3
+    # -- Specify the minimum number of replicas for the selenium node pod within the cluster.
+    minReplicas: 1
 
-  # -- Specify the scaledown stabilization window for scaling node instances.
-  stabilizationWindowSeconds: 30
+    # -- Specify the maximum number of replicas for the selenium node pod within the cluster.
+    maxReplicas: 3
 
-  # -- Utilization percentage target for scaling number of nodes up or down
-  scalingUtilizationPercentage: 80
+    # -- Specify the scaledown stabilization window for scaling chrome node instances.
+    stabilizationWindowSeconds: 30
 
-  # -- Specify the image for the node instances.
-  image: docker.io/selenium/node-chrome:latest
+    # -- Utilization percentage target for scaling number of chrome nodes up or down.
+    scalingUtilizationPercentage: 80
+
+    # -- Specify the image for the chrome node instances.
+    image: docker.io/selenium/node-chrome:latest
+
+  firefox:
+    # -- Toggle whether firefox nodes should be spun up with the cluster.
+    enabled: true
+
+    # -- Specify the number of firefox node pods you want spun up as a base case.
+    replicas: 1
+
+    # -- Specify the maximum concurrency level that you want for each node pod.
+    concurrency: 1
+
+    # -- Specify the minimum number of replicas for the firefox node pod within the cluster.
+    minReplicas: 1
+
+    # -- Specify the maximum number of replicas for the firefox node pod within the cluster.
+    maxReplicas: 3
+
+    # -- Specify the scaledown stabilization window for scaling firefox node instances.
+    stabilizationWindowSeconds: 30
+
+    # -- Utilization percentage target for scaling number of firefox nodes up or down.
+    scalingUtilizationPercentage: 80
+
+    # -- Specify the image for the firefox node instances.
+    image: docker.io/selenium/node-firefox:latest
+
+  edge:
+    # -- Toggle whether edge nodes should be spun up with the cluster.
+    enabled: true
+
+    # -- Specify the number of edge node pods you want spun up as a base case.
+    replicas: 1
+
+    # -- Specify the maximum concurrency level that you want for each node pod.
+    concurrency: 1
+
+    # -- Specify the minimum number of replicas for the edge node pod within the cluster.
+    minReplicas: 1
+
+    # -- Specify the maximum number of replicas for the edge node pod within the cluster.
+    maxReplicas: 3
+
+    # -- Specify the scaledown stabilization window for scaling edge node instances.
+    stabilizationWindowSeconds: 30
+
+    # -- Utilization percentage target for scaling number of edge nodes up or down.
+    scalingUtilizationPercentage: 80
+
+    # -- Specify the image for the edge node instances.
+    image: docker.io/selenium/node-edge:latest
 
   resources:
     limits:
