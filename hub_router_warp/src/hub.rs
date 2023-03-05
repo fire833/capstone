@@ -30,6 +30,7 @@ pub struct Hub {
 }
 
 impl Hub {
+    /// Initialize a new Hub instance.
     pub fn new(ip: IpAddr, port: u16) -> Hub {
         Hub {
             ip,
@@ -40,6 +41,7 @@ impl Hub {
         }
     }
 
+    /// Check to make sure that the current Hub will support the desired capability.
     pub fn can_satisfy_capability(&self, capability: &NewSessionRequestCapability) -> bool {
         self.stereotypes.iter().any(|stereotype| {
             let satisfies_browser = capability.browserName.is_none()
@@ -52,6 +54,12 @@ impl Hub {
 
             satisfies_browser && satisfies_platform_name
         })
+    }
+
+    /// Check to make sure a Hub is both ready and available, and satisfies the
+    /// desired capability.
+    pub fn is_ready_and_capable(&self, capability: &NewSessionRequestCapability) -> bool {
+        self.can_satisfy_capability(capability) && self.readiness == HubReadiness::Ready
     }
 }
 
