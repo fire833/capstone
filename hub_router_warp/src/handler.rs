@@ -15,7 +15,7 @@ use crate::{
     schema::{NewSessionRequestBody, NewSessionRequestCapability, NewSessionResponse},
 };
 
-fn extract_sessionid(req: &Request<Body>) -> Option<String> {
+fn extract_session_id(req: &Request<Body>) -> Option<String> {
     lazy_static! {
         static ref SESSION_ID_REGEXP: Regex = Regex::new(r"^/session/([^/]*)(/|\z)").unwrap();
     }
@@ -39,6 +39,35 @@ fn extract_sessionid(req: &Request<Body>) -> Option<String> {
             }
         }
     }
+}
+
+#[test]
+fn test_extract_session_id() {
+    let t1 = hyper::Request::post("https://example.com/session/234787498dfhgshdfgsdhf0943/")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        extract_session_id(&t1),
+        Some(String::from("234787498dfhgshdfgsdhf0943"))
+    );
+
+    let t2 = hyper::Request::get("https://example.com/sess/")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(extract_session_id(&t2), None);
+
+    let t3 = hyper::Request::get("https://example.com/session/123456/3875285udfhd")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(extract_session_id(&t3), Some(String::from("123456")));
+
+    let t4 = hyper::Request::get("https://example.com/session/*&*$&)HJSJKADHLAKDFS)_/3875285udfhd")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        extract_session_id(&t4),
+        Some(String::from("*&*$&)HJSJKADHLAKDFS)_"))
+    );
 }
 
 pub async fn extract_capabilities_from_new_session_request(
@@ -76,6 +105,29 @@ fn is_request_new_session(req: &Request<Body>) -> bool {
         && req.uri().path_and_query().unwrap().as_str() == "/session";
 }
 
+#[test]
+fn test_req_is_new_session() {
+    let t1 = hyper::Request::post("https://example.com/session")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(is_request_new_session(&t1), true);
+
+    let t2 = hyper::Request::post("https://example.com/session/247579fhsjkdfhdsjkfhsfg")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(is_request_new_session(&t2), false);
+
+    let t3 = hyper::Request::get("https://example.com/session/247579fhsjkdfhdsjkfhsfg")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(is_request_new_session(&t3), false);
+
+    let t4 = hyper::Request::post("https://example.com/sessi")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(is_request_new_session(&t4), false);
+}
+
 fn is_delete_session(req: &Request<Body>) -> bool {
     return req.method() == Method::DELETE
         && req.uri().path_and_query().is_some()
@@ -85,6 +137,24 @@ fn is_delete_session(req: &Request<Body>) -> bool {
             .unwrap()
             .as_str()
             .starts_with("/session/");
+}
+
+#[test]
+fn test_delete_session() {
+    let t1 = hyper::Request::delete("https://example.com/session/237598yfub398f4h8dufd")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(is_delete_session(&t1), true);
+
+    let t2 = hyper::Request::post("https://example.com/session/237598yfub398f4h8dufd")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(is_delete_session(&t2), false);
+
+    let t3 = hyper::Request::delete("http://example.com/")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(is_delete_session(&t3), false);
 }
 
 async fn handle_new_session_request(
@@ -125,7 +195,7 @@ async fn forward_request(
     _routing_map: Arc<RoutingPrecedentMap>,
     _endpoint_map: Arc<DashMap<Endpoint, Hub>>,
 ) -> Result<Response<Body>, HubRouterError> {
-    let maybe_session_id = extract_sessionid(&req);
+    let maybe_session_id = extract_session_id(&req);
     let routing_decision =
         make_routing_decision(maybe_session_id, None, _routing_map, _endpoint_map)?;
     apply_routing_decision(&mut req, &routing_decision)?;
@@ -139,19 +209,21 @@ async fn handle_delete_session_request(
     routing_map: Arc<RoutingPrecedentMap>,
     _endpoint_map: Arc<DashMap<Endpoint, Hub>>,
 ) -> Result<Response<Body>, HubRouterError> {
-    let session_id = extract_sessionid(&req);
+    let session_id = extract_session_id(&req);
     let result = forward_request(req, routing_map.clone(), _endpoint_map).await;
     routing_map.remove(&session_id.unwrap());
     result
 }
 
+/// Primary handler function for forwarding requests onto downstream Hubs.
+/// This function will be called by the primary listener for forwarding requests.
 pub async fn handle(
     req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
     endpoint_map: Arc<DashMap<Endpoint, Hub>>,
 ) -> Result<Response<Body>, hyper::Error> {
     println!("Got req uri: {:#?}", req.uri());
-    let maybe_session_id = extract_sessionid(&req);
+    let maybe_session_id = extract_session_id(&req);
 
     let response: Result<Response<Body>, HubRouterError> = async {
         if is_request_new_session(&req) {
