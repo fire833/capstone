@@ -1,4 +1,8 @@
+use std::time::Instant;
+
 use serde::{Deserialize, Serialize};
+
+use crate::routing::Endpoint;
 
 #[derive(Deserialize, Debug, Clone)]
 #[allow(non_snake_case, unused)]
@@ -119,4 +123,19 @@ pub struct NewSessionRequestCapabilities {
 pub struct NewSessionRequestCapability {
     pub browserName: Option<String>,
     pub platformName: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Session {
+    id: String,
+    endpoint: Endpoint,
+}
+
+impl Session {
+    pub fn new(id: &String, endpoint: Endpoint) -> Self {
+        Self {
+            id: id.clone(),
+            endpoint,
+        }
+    }
 }

@@ -7,6 +7,8 @@ use routing::{Endpoint, RoutingPrecedentMap};
 use std::convert::Infallible;
 
 use ::config::Config;
+
+#[allow(unused)]
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;

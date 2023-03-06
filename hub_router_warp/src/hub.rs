@@ -2,6 +2,7 @@ use std::{collections::HashSet, net::IpAddr, sync::Arc, time::Duration};
 
 use dashmap::DashMap;
 use hyper::{Body, Client, Method, Request, Uri};
+use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
 
 use crate::{
@@ -13,20 +14,26 @@ use crate::{
     },
 };
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum HubReadiness {
     Unhealthy,          // not responding to /status requests
     HealthyButNotReady, // responds to /status requests but the ready response is false
     Ready,              // response to /status with ready: true
 }
 
-#[derive(Debug, Clone)]
+/// Hub is an internal representation for a remote Selenium Hub instance
+/// we wish to forward tests to.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Hub {
     pub port: u16,
     pub ip: IpAddr,
     pub fullness: u8,
     pub stereotypes: HashSet<HubStatusStereotypeJSONSchema>,
     pub readiness: HubReadiness,
+
+    // Optionally, provide credentials to pass on with any queries to the Hubs.
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
 impl Hub {
@@ -38,6 +45,8 @@ impl Hub {
             fullness: 0,
             stereotypes: HashSet::new(),
             readiness: HubReadiness::Unhealthy,
+            username: None,
+            password: None,
         }
     }
 
