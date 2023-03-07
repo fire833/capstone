@@ -29,7 +29,7 @@ pub async fn hub_api_thread(
         .and(warp::path!("api" / "hubs"))
         .and(warp::path::end())
         .and(hubs_filter.clone())
-        .and(warp::body::json())
+        .and(warp::body::json::<Hub>())
         .and_then(create_hub);
 
     let delete_hub = warp::delete()
