@@ -9,33 +9,29 @@ variable "gke_password" {
 }
 
 resource "google_container_cluster" "gke" {
-  # Define in different TF file ?
-  name = ""
-  location = ""
+  
+  name = "${var.gke_projectid}-gke"
+  location = var.gke_region
 
-  # Edit later
   initial_node_count = 1
 
-  # Define in different TF file
-  network = 
-  subnetwork = 
+  # Defined in 'gke_vpc.tf'
+  network = "${var.gke_projectid}-vpc"
 }
 
 # May need to use one of the helm charts for this
 resource "google_container_node_pool" "gke_nodes" {
 
-  name = 
-  location = 
-  cluster = google_container_cluster.gke
-  node_count = 
+  name = "${var.gke_projectid}-nodes"
+  location = google_container_cluster.gke.name
+  cluster = google_container_cluster.gke.name
+  node_count = 1
 
   node_config {
-    oauth_scopes = []
+    # oauth_scopes = []
+    # labels = {}
 
-    labels = {}
-
-    machine_type = 
-    tags = 
+    machine_type = "e2-standard"
+    # tags = 
   }
-  
 }

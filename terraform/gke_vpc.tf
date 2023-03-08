@@ -1,7 +1,7 @@
 # VPC
 resource "google_compute_network" "vpc" {
-    name = 
-    # auto_create_subnetworks = false
+    name = "${var.gke_projectid}-vpc"
+    auto_create_subnetworks = false
 }
 
 # # Subnet, if needed
