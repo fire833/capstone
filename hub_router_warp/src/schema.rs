@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::net::IpAddr;
 
 use serde::{Deserialize, Serialize};
 
@@ -125,6 +125,8 @@ pub struct NewSessionRequestCapability {
     pub platformName: Option<String>,
 }
 
+/// Session is the object for serializing internal session data for
+/// consumption by the external API.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Session {
     id: String,
@@ -138,4 +140,14 @@ impl Session {
             endpoint,
         }
     }
+}
+
+/// HubExternal is the object for serializing/deserializing internal Hub information
+/// for reading and writing via the external API.
+#[derive(Debug, Serialize, Deserialize)]
+#[allow(non_snake_case, unused)]
+pub struct HubExternal {
+    pub name: String,
+    pub ip: IpAddr,
+    pub port: u16,
 }

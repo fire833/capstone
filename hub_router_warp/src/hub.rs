@@ -23,8 +23,10 @@ pub enum HubReadiness {
 
 /// Hub is an internal representation for a remote Selenium Hub instance
 /// we wish to forward tests to.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Hub {
+    pub name: String,
+
     pub port: u16,
     pub ip: IpAddr,
     pub fullness: u8,
@@ -40,6 +42,20 @@ impl Hub {
     /// Initialize a new Hub instance.
     pub fn new(ip: IpAddr, port: u16) -> Hub {
         Hub {
+            name: String::from("unknown"),
+            ip,
+            port,
+            fullness: 0,
+            stereotypes: HashSet::new(),
+            readiness: HubReadiness::Unhealthy,
+            username: None,
+            password: None,
+        }
+    }
+
+    pub fn new_with_name(name: String, ip: IpAddr, port: u16) -> Hub {
+        Hub {
+            name,
             ip,
             port,
             fullness: 0,
@@ -67,6 +83,7 @@ impl Hub {
 
     /// Check to make sure a Hub is both ready and available, and satisfies the
     /// desired capability.
+    #[allow(unused)]
     pub fn is_ready_and_capable(&self, capability: &NewSessionRequestCapability) -> bool {
         self.can_satisfy_capability(capability) && self.readiness == HubReadiness::Ready
     }

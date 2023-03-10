@@ -1,7 +1,7 @@
 use crate::conf::{API_BIND_IP, API_BIND_PORT};
 use crate::hub::Hub;
 use crate::routing::{Endpoint, RoutingDecision};
-use crate::schema::Session;
+use crate::schema::{HubExternal, Session};
 use dashmap::DashMap;
 use hyper::StatusCode;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -29,11 +29,12 @@ pub async fn hub_api_thread(
         .and(warp::path!("api" / "hubs"))
         .and(warp::path::end())
         .and(hubs_filter.clone())
-        .and(warp::body::json::<Hub>())
+        .and(warp::body::content_length_limit(1024 * 16))
+        .and(warp::body::json::<Vec<HubExternal>>())
         .and_then(create_hub);
 
     let delete_hub = warp::delete()
-        .and(warp::path!("api" / "hubs"))
+        .and(warp::path!("api" / "hubs" / String))
         .and(warp::path::end())
         .and(hubs_filter.clone())
         .and_then(delete_hub);
@@ -42,6 +43,8 @@ pub async fn hub_api_thread(
         .and(warp::path!("api" / "hubs"))
         .and(warp::path::end())
         .and(hubs_filter.clone())
+        .and(warp::body::content_length_limit(1024 * 16))
+        .and(warp::body::json::<HubExternal>())
         .and_then(update_hub);
 
     let get_sessions = warp::get()
@@ -85,34 +88,86 @@ async fn get_hubs(hubs: Arc<DashMap<Endpoint, Hub>>) -> Result<impl warp::Reply,
 
 async fn create_hub(
     hubs: Arc<DashMap<Endpoint, Hub>>,
-    new_hub: Hub,
+    new_hubs: Vec<HubExternal>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let ip = new_hub.ip;
-    let port = new_hub.port;
-    if hubs.contains_key(&(new_hub.ip, new_hub.port)) {
-        return Ok(warp::reply::with_status(
-            format!("hub at {}:{} already registered", ip, port),
-            StatusCode::NOT_ACCEPTABLE,
-        ));
-    } else {
-        hubs.insert((new_hub.ip, new_hub.port), new_hub);
-        return Ok(warp::reply::with_status(
-            format!("registered hub at {}:{}", ip, port),
-            StatusCode::CREATED,
-        ));
+    println!("creating new hub...");
+
+    for new_hub in new_hubs {
+        let ip = new_hub.ip;
+        let port = new_hub.port;
+        if hubs.contains_key(&(new_hub.ip, new_hub.port)) {
+            return Ok(warp::reply::with_status(
+                format!("hub at {}:{} already registered", ip, port),
+                StatusCode::NOT_ACCEPTABLE,
+            ));
+        } else {
+            hubs.insert(
+                (new_hub.ip, new_hub.port),
+                Hub::new_with_name(new_hub.name, new_hub.ip, new_hub.port),
+            );
+        }
     }
+
+    return Ok(warp::reply::with_status(
+        format!("registered hubs successfully"),
+        StatusCode::CREATED,
+    ));
 }
 
 async fn delete_hub(
+    name: String,
     hubs: Arc<DashMap<Endpoint, Hub>>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    Ok(warp::reply::reply())
+    let mut key: Option<(IpAddr, u16)> = None;
+
+    for hub in hubs.iter_mut() {
+        if hub.name == name {
+            key = Some(hub.key().clone());
+        }
+    }
+
+    if let Some(key) = key {
+        hubs.remove(&key);
+        return Ok(warp::reply::reply());
+    } else {
+        Ok(warp::reply::reply())
+        // return Ok(warp::reply::with_status(
+        //     format!("hub at {}:{} already registered", ip, port),
+        //     StatusCode::NOT_ACCEPTABLE,
+        // ));
+    }
 }
 
 async fn update_hub(
     hubs: Arc<DashMap<Endpoint, Hub>>,
+    new_hub: HubExternal,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    Ok(warp::reply::reply())
+    // Ehh, for now just ietrate through all of the Hubs until we find a match, there
+    // should never be enough where it would be an issue anyways.
+
+    println!("updating hub now...");
+
+    for mut hub in hubs.iter_mut() {
+        if hub.name == new_hub.name {
+            hub.ip = new_hub.ip;
+            hub.port = new_hub.port;
+            // hub.username = new_hub.username.clone();
+            // hub.password = new_hub.password.clone();
+
+            println!("hub updated");
+
+            return Ok(warp::reply::reply());
+        } else {
+            continue;
+        }
+    }
+
+    // Ok(warp::reply::with_status(
+    //     format!(""),
+    //     StatusCode::NOT_ACCEPTABLE,
+    // ))
+
+    Err(warp::reject())
 }
 
 async fn get_sessions(
