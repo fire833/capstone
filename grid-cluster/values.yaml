@@ -1,8 +1,7 @@
 ---
 
-# -- The cloud provider the helm chart deploys to. One of: "local", "AWS", "GCP", "Azure"
+# -- The cloud provider to which you will deploy this chart. One of: "local", "AWS", "GCP", "Azure"
 cloud_provider: "local"
-
 
 # -- Node management options for each selenium grid node managed by this chart.
 nodes:
