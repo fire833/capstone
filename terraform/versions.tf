@@ -1,7 +1,3 @@
-# variable "gke_projectid" {
-#   description = "GKE project ID"
-# }
-
 terraform {
     required_providers {
       google = {
