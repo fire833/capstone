@@ -8,7 +8,7 @@ variable "gke_projectid" {
 }
 
 resource "google_service_account" "service_account" {
-  account_id = "${google_container_cluster.name}-node-service-acount"
+  account_id = "${var.gke_projectid}"
   display_name = "Node Service Account"
 }
 
