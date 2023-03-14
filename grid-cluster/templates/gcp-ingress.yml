@@ -1,0 +1,16 @@
+{{ if eq .Values.cloud_provider "GCP" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gcp-hubsvc-ingress
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: gcp-hub-global-ip
+spec:
+  defaultBackend:
+    service:
+      name: hubsvc
+      port:
+        number: 9994
+  timeoutSec: 600
+{{ end }}

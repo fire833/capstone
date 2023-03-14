@@ -28,5 +28,12 @@ spec:
           # In milliseconds, maps to "--session-retry-interval"
           - name: SE_SESSION_RETRY_INTERVAL
             value: "250"
+          # In seconds, how long a test can be idle before being killed
+          - name: SE_NODE_SESSION_TIMEOUT
+            value: {{ .Values.hub.session_timeout_sec | quote }}
+          # In seconds, how long a test can sit in the queue before being dropped
+          - name: SE_SESSION_REQUEST_TIMEOUT
+            value: {{ .Values.hub.session_queue_timeout_sec | quote }}
+          # In seconds, how frequently the hub should send a health probe to the selenium nodes
           - name: SE_OPTS
             value: "--healthcheck-interval 5"

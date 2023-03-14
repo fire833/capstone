@@ -45,7 +45,7 @@ function runTest(i) {
             switch (_a.label) {
                 case 0:
                     rand = Math.random();
-                    return [4 /*yield*/, new selenium_webdriver_1.Builder().forBrowser(rand < 0.7 ? 'chrome' : 'firefox').build()];
+                    return [4 /*yield*/, new selenium_webdriver_1.Builder().forBrowser(rand < 2 ? 'chrome' : 'firefox').build()];
                 case 1:
                     driver = _a.sent();
                     return [4 /*yield*/, driver.get("https://google.com/search?q=newtest" + i)];
@@ -75,6 +75,6 @@ var _loop_1 = function (i) {
         console.error("Error in test " + i + ":", err);
     });
 };
-for (var i = 0; i < 100; i++) {
+for (var i = 0; i < 3; i++) {
     _loop_1(i);
 }

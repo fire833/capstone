@@ -4,6 +4,10 @@ kind: Service
 metadata:
   name: hubsvc
   namespace: {{ .Release.namespace }}
+  annotations:
+    cloud.google.com/backend-config: '{"ports": {
+      "9994": "hubsvc-ui-backendconfig"
+      }}'
 spec:
   type: NodePort
   selector:
@@ -19,3 +23,17 @@ spec:
     targetPort: 4444
     name: uiport
     nodePort: 30000
+---
+{{ if eq .Values.cloud_provider "GCP" }}
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: hubsvc-ui-backendconfig
+spec:
+  healthCheck:
+    checkIntervalSec: 30
+    timeoutSec: 25
+    port: 30000
+    type: HTTP
+    requestPath: /ui
+{{ end }}

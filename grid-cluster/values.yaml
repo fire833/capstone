@@ -1,5 +1,9 @@
 ---
 
+# -- The cloud provider the helm chart deploys to. One of: "local", "AWS", "GCP", "Azure"
+cloud_provider: "local"
+
+
 # -- Node management options for each selenium grid node managed by this chart.
 nodes:
 
@@ -35,7 +39,7 @@ nodes:
       memory: "1Gi"
 
       # -- Specify the maximum cpu for every selenium node within the cluster.
-      cpu: "1"
+      cpu: "250m"
 
 # -- Hub management options for the hub node managed by this chart. 
 hub:
@@ -43,13 +47,19 @@ hub:
   # -- Specify the image for the hub instance.
   image: docker.io/selenium/hub:4.8.0
 
+  # -- The amount of seconds which a test will be allowed to wait in the queue before being timed out and removed
+  session_queue_timeout_sec: 300
+
+  # -- The amount of seconds during which a test is allowed to have no activity before it is killed
+  session_timeout_sec: 300
+
   resources:
     limits:
       # -- Specify the maximum memory for the hub instance within the cluster.
       memory: "1Gi"
   
       # -- Specify the maximum cpu for the hub instance within the cluster.
-      cpu: "1"
+      cpu: "250m"
 
 # -- Configuration for the selenium grid exporter
 exporter:

@@ -3,7 +3,7 @@ import { writeFileSync } from "fs";
 
 async function runTest(i: number){
 	let rand = Math.random();
-    let driver = await new Builder().forBrowser(rand < 0.7 ? 'chrome' : 'firefox').build(); 
+    let driver = await new Builder().forBrowser(rand < 2 ? 'chrome' : 'firefox').build(); 
     await driver.get("https://google.com/search?q=newtest" + i);
 
     let title = await driver.getTitle();
@@ -19,7 +19,7 @@ async function runTest(i: number){
 
 console.log("Don't forget to set SELENIUM_REMOTE_URL, it is currently set to: " + process.env['SELENIUM_REMOTE_URL']);
 
-for(let i = 0; i < 100; i++){
+for(let i = 0; i < 3; i++){
     runTest(i).then(res => {
         console.log("completed test");
     }).catch(err => {
