@@ -7,6 +7,11 @@ variable "gke_projectid" {
   description = "GKE project ID"
 }
 
+provider "google" {
+  project = var.gke_projectid
+  region = var.gke_region
+}
+
 resource "google_service_account" "service_account" {
   account_id = "${var.gke_projectid}"
   display_name = "Node Service Account"
@@ -15,7 +20,7 @@ resource "google_service_account" "service_account" {
 resource "google_container_cluster" "gke" {
   
   name = "${var.gke_projectid}-gke"
-  project = var.gke_projectid
+  # project = var.gke_projectid
   location = var.gke_region
 
   # Node pool is managed by autoscaler
@@ -30,7 +35,7 @@ resource "google_container_cluster" "gke" {
 resource "google_container_node_pool" "gke_nodes" {
 
   name = "${var.gke_projectid}-nodes"
-  project = var.gke_projectid
+  # project = var.gke_projectid
   location = google_container_cluster.gke.location
 
   cluster = google_container_cluster.gke.name
