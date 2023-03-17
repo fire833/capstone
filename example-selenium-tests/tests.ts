@@ -19,7 +19,7 @@ async function runTest(i: number){
 
 console.log("Don't forget to set SELENIUM_REMOTE_URL, it is currently set to: " + process.env['SELENIUM_REMOTE_URL']);
 
-for(let i = 0; i < 3; i++){
+for(let i = 0; i < 30; i++){
     runTest(i).then(res => {
         console.log("completed test");
     }).catch(err => {

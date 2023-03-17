@@ -75,6 +75,6 @@ var _loop_1 = function (i) {
         console.error("Error in test " + i + ":", err);
     });
 };
-for (var i = 0; i < 3; i++) {
+for (var i = 0; i < 30; i++) {
     _loop_1(i);
 }
