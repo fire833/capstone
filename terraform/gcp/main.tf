@@ -35,10 +35,15 @@ terraform {
 }
 
 provider "google" {
-  region = var.region
-  # access_token = var.access_key
+    region = var.region
+    project = var.project_id
+    # access_token = var.access_key
 }
 
 provider "helm" {
-
+  kubernetes {
+        cluster_ca_certificate = base64decode(google_container_cluster.primary.master_auth.0.cluster_ca_certificate)
+        host  = "https://${google_container_cluster.primary.endpoint}"
+        token = data.google_client_config.default.access_token
+  }
 }

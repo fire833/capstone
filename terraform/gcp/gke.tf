@@ -1,5 +1,9 @@
 # Configuration resources for creating GCP GKE Cluster.
 
+
+# Retrieve an access token from the gcloud CLI
+data "google_client_config" "default" {}
+
 # VPC creation
 resource "google_compute_network" "vpc" {
   name                    = "grid-cluster-vpc"
@@ -25,7 +29,7 @@ resource "google_compute_global_address" "default" {
 # Configure the actual cluster resource with your GCP account.
 resource "google_container_cluster" "primary" {
   name     = var.cluster_name
-  location = var.zone
+  location = var.region
 
   # Set a minimum version to the cluster.
   min_master_version = var.cluster_version
@@ -34,6 +38,12 @@ resource "google_container_cluster" "primary" {
   # separately managed node pools. So we create the smallest possible default
   # node pool and immediately delete it.
   initial_node_count = var.node_count
+
+  master_auth { 
+    client_certificate_config {
+      issue_client_certificate = false
+    }
+  }
 
   node_config {
     oauth_scopes = [
