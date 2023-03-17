@@ -3,7 +3,30 @@ entries:
   selenium-grid-cluster:
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-03-17T00:26:10.1979515-05:00"
+    created: "2023-03-17T00:28:40.2385605-05:00"
+    dependencies:
+    - name: prometheus
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 19.6.1
+    - name: prometheus-adapter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 4.1.1
+    description: Helm chart for deploying a dynamically-scalable Selenium Grid cluster
+      and associated infrastructure.
+    digest: 3c1d1dcad1e15bbe39642e24d2af657c61e1ab883d450572b752f4dd123ead33
+    maintainers:
+    - email: kendall.tauser@ou.edu
+      name: Kendall Tauser
+      url: https://github.com/fire833
+    - name: Aaron Pierce
+    name: selenium-grid-cluster
+    type: application
+    urls:
+    - selenium-grid-cluster-0.3.3.tgz
+    version: 0.3.3
+  - apiVersion: v2
+    appVersion: 4.8.0
+    created: "2023-03-17T00:28:40.2324403-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -26,7 +49,7 @@ entries:
     version: 0.3.2
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-03-17T00:26:10.1923979-05:00"
+    created: "2023-03-17T00:28:40.2265381-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -49,7 +72,7 @@ entries:
     version: 0.3.1
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-03-17T00:26:10.1860884-05:00"
+    created: "2023-03-17T00:28:40.2210052-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -70,4 +93,4 @@ entries:
     urls:
     - selenium-grid-cluster-0.3.0.tgz
     version: 0.3.0
-generated: "2023-03-17T00:26:10.1798145-05:00"
+generated: "2023-03-17T00:28:40.214766-05:00"
