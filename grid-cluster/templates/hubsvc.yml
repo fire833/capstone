@@ -36,4 +36,5 @@ spec:
     port: 30000
     type: HTTP
     requestPath: /ui
+  timeoutSec: 600
 {{ end }}

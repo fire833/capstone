@@ -1,6 +1,6 @@
 {{ if eq .Values.cloud_provider "GCP" }}
 ---
-apiVersion: cloud.google.com/v1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: gcp-hubsvc-ingress
@@ -12,5 +12,4 @@ spec:
       name: hubsvc
       port:
         number: 9994
-  timeoutSec: 600
 {{ end }}
