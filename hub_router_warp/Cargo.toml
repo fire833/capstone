@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 hyper = { version = "0.14", features = ["full"] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.26.0", features = ["full"] }
 dashmap = "5.4.0"
 regex = "1.7.1"
 lazy_static = "1.4.0"

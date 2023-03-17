@@ -35,10 +35,10 @@ terraform {
 }
 
 provider "google" {
-    region = var.region
-    # access_token = var.access_key
+  region = var.region
+  # access_token = var.access_key
 }
 
 provider "helm" {
-    
+
 }

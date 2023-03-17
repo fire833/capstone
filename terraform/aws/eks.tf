@@ -1,5 +1,15 @@
 # Configuration resources for creating AWS EKS Cluster
 
+data "aws_availability_zones" "available" {}
+
+data "aws_eks_cluster" "eks" {
+  name = module.eks.cluster_name
+}
+
+data "aws_eks_cluster_auth" "eks" {
+  name = module.eks.cluster_name
+}
+
 # Set up an initial VPC for the instances to run in.
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
@@ -18,13 +28,13 @@ module "vpc" {
   enable_dns_hostnames = true
 
   public_subnet_tags = {
-    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
-    "kubernetes.io/role/elb"                      = 1
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/role/elb"                    = 1
   }
 
   private_subnet_tags = {
-    "kubernetes.io/cluster/${local.cluster_name}" = "shared"
-    "kubernetes.io/role/internal-elb"             = 1
+    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+    "kubernetes.io/role/internal-elb"           = 1
   }
 }
 
@@ -52,7 +62,7 @@ module "eks" {
       instance_types = ["t3.small"]
 
       min_size     = var.node_count
-      max_size     = 3
+      max_size     = var.node_count_max
       desired_size = var.node_count
     }
   }
