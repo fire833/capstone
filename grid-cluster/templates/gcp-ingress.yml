@@ -4,6 +4,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: gcp-hubsvc-ingress
+  namespace: {{ .Release.namespace }}
   annotations:
     kubernetes.io/ingress.global-static-ip-name: gcp-hub-global-ip
 spec:

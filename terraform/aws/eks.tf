@@ -4,10 +4,16 @@ data "aws_availability_zones" "available" {}
 
 data "aws_eks_cluster" "eks" {
   name = module.eks.cluster_name
+  depends_on = [
+    module.eks
+  ]
 }
 
 data "aws_eks_cluster_auth" "eks" {
   name = module.eks.cluster_name
+  depends_on = [
+    module.eks
+  ]
 }
 
 # Set up an initial VPC for the instances to run in.
