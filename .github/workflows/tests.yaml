@@ -15,6 +15,16 @@ on:
       - "*"
 
 jobs:
+  router-tests:
+    runs-on: ubuntu-latest
+    steps:
+    
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Run tests
+      run: cd hub_router_warp/ && cargo test
+
   exporter-tests:
     runs-on: ubuntu-latest
     steps:
@@ -33,7 +43,15 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Validate Chart
-      run: helm template test selenium-grid-cluster/ --debug
+      run: helm template test grid-cluster/ --debug
 
     - name: Lint chart
-      run: helm lint selenium-grid-cluster/ --debug
+      run: helm lint grid-cluster/ --debug
+
+  # cluster-deploy:
+  #   runs-on: ubuntu-latest
+  #   steps:
+
+  #     - name: Checkout
+  #       uses: actions/checkout@v3
+
