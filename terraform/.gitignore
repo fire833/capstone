@@ -1,7 +1,6 @@
-*.jar
-
+.terraform*
 .terraform
+
+creds.yaml
 terraform.tfstate
 terraform.tfstate.backup
-
-*.tfvars
