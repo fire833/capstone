@@ -56,6 +56,8 @@ module "eks" {
   subnet_ids                     = module.vpc.private_subnets
   cluster_endpoint_public_access = true
 
+  aws_auth_node_iam_role_arns_non_windows = [""]
+
   eks_managed_node_group_defaults = {
     ami_type = "AL2_x86_64"
 
@@ -72,4 +74,70 @@ module "eks" {
       desired_size = var.node_count
     }
   }
+}
+
+data "aws_iam_policy_document" "lb_policies" {
+  statement {
+    actions = [ "ec2:DescribeVpcs",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeInstances",
+          "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:DescribeTargetHealth",
+          "elasticloadbalancing:ModifyTargetGroup",
+          "elasticloadbalancing:ModifyTargetGroupAttriblutes",
+          "elasticloadbalancing:RegisterTargets",
+          "elasticloadbalancing:DeregisterTargets",
+          "elasticloadbalancing:DescribeLoadBalancers" ]
+
+    effect = "Allow"
+    resources = [ "*" ]
+    # principals {
+    #   type = "Service"
+    #   identifiers = [ "ec2.amazonaws.com" ]
+    # }
+  }
+}
+
+data "aws_iam_policy_document" "assume_role_policy" {
+  statement {
+    actions = [ "sts:AssumeRole" ]
+    effect = "Allow"
+    principals {
+      type = "Service"
+      identifiers = [ "ec2.amazonaws.com" ]
+    }
+  }
+}
+
+resource "aws_iam_role" "lb_role" {
+  name = "ab_role"
+
+  assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
+
+  inline_policy {
+    policy = data.aws_iam_policy_document.lb_policies.json
+  }
+
+  # assume_role_policy = <<EOT
+  # {
+  #   "Statement" : [
+  #     {
+  #       "Action" : [
+  #         "ec2:DescribeVpcs",
+  #         "ec2:DescribeSecurityGroups",
+  #         "ec2:DescribeInstances",
+  #         "elasticloadbalancing:DescribeTargetGroups",
+  #         "elasticloadbalancing:DescribeTargetHealth",
+  #         "elasticloadbalancing:ModifyTargetGroup",
+  #         "elasticloadbalancing:ModifyTargetGroupAttributes",
+  #         "elasticloadbalancing:RegisterTargets",
+  #         "elasticloadbalancing:DeregisterTargets"
+  #       ],
+  #       "Effect" : "Allow",
+  #       "Resource" : "*"
+  #     }
+  #   ],
+  #   "Version" : "2012-10-17"
+  # }
+  # EOT
 }
