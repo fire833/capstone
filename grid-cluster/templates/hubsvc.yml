@@ -27,11 +27,6 @@ spec:
     targetPort: 4444
     name: uiport
     nodePort: 30000
-{{- if eq .Values.cloud_provider "AWS" }}
-  - port: 80
-    targetPort: 4444
-    name: awsuiport
-{{- end }}
 ---
 {{ if eq .Values.cloud_provider "GCP" }}
 apiVersion: cloud.google.com/v1
