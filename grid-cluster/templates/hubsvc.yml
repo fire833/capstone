@@ -8,6 +8,9 @@ metadata:
     cloud.google.com/backend-config: '{"ports": {
       "9994": "hubsvc-ui-backendconfig"
       }}'
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
 spec:
 {{- if eq .Values.cloud_provider "AWS" }}
   type: LoadBalancer

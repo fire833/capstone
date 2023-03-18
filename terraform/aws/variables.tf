@@ -11,7 +11,7 @@ variable "node_count" {
 
 variable "node_count_max" {
   description = "Specify the maximum number of nodes to be created."
-  default = 6
+  default     = 6
 }
 
 variable "cluster_name" {
@@ -22,6 +22,11 @@ variable "cluster_name" {
 variable "cluster_version" {
   description = "Specify the cluster version you want."
   default     = "1.24"
+}
+
+variable "deploy_namespace" {
+  description = "Specify the Kubernetes namespace to deploy to."
+  default     = "default"
 }
 
 # variable "access_key" {
