@@ -22,15 +22,6 @@ terraform {
       version = "~>3.4.3"
     }
 
-    # tls = {
-    #   source  = "hashicorp/tls"
-    #   version = "~>4.0.4"
-    # }
-
-    # cloudinit = {
-    #   source  = "hashicorp/cloudinit"
-    #   version = "~>2.2.0"
-    # }
   }
 }
 
@@ -39,8 +30,6 @@ provider "aws" {
   # access_key = var.access_key
   # secret_key = var.secret_access_key
 }
-
-
 
 provider "helm" {
   kubernetes {

@@ -56,10 +56,13 @@ module "eks" {
   subnet_ids                     = module.vpc.private_subnets
   cluster_endpoint_public_access = true
 
+  enable_irsa = true
 
   eks_managed_node_group_defaults = {
     ami_type = "AL2_x86_64"
-
+    iam_role_additional_policies = {
+      additional = aws_iam_policy.lb-policy.arn
+    }
   }
 
 
@@ -78,11 +81,33 @@ module "eks" {
 }
 
 
+data "aws_iam_policy_document" "lb_policies" {
+  statement {
+    actions = [ "ec2:DescribeVpcs",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeInstances",
+          "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:DescribeTargetHealth",
+          "elasticloadbalancing:ModifyTargetGroup",
+          "elasticloadbalancing:ModifyTargetGroupAttriblutes",
+          "elasticloadbalancing:RegisterTargets",
+          "elasticloadbalancing:DeregisterTargets",
+          "elasticloadbalancing:DescribeLoadBalancers" ]
+
+    effect = "Allow"
+    resources = [ "*" ]
+  }
+}
+
+resource "aws_iam_policy" "lb-policy" {
+  policy = data.aws_iam_policy_document.lb_policies.json
+}
+
 
 module "lb_role" {
   source    = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
 
-  role_name = "${var.cluster_name}_eks_lb"
+  role_name = "aws-load-balancer-controller"
   attach_load_balancer_controller_policy = true
 
   oidc_providers = {
@@ -91,24 +116,28 @@ module "lb_role" {
       namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
     }
   }
+
+  depends_on = [
+    module.eks
+  ]
 }
+
 
 
 resource "kubernetes_service_account" "service-account" {
   metadata {
-    name = "aws-load-balancer-controller"
+    name      = "aws-load-balancer-controller"
     namespace = "kube-system"
     labels = {
-        "app.kubernetes.io/name"= "aws-load-balancer-controller"
-        "app.kubernetes.io/component"= "controller"
+      "app.kubernetes.io/name"      = "aws-load-balancer-controller"
+      "app.kubernetes.io/component" = "controller"
     }
     annotations = {
-      "eks.amazonaws.com/role-arn" = module.lb_role.iam_role_arn
+      "eks.amazonaws.com/role-arn"               = module.lb_role.iam_role_arn
       "eks.amazonaws.com/sts-regional-endpoints" = "true"
     }
   }
-
   depends_on = [
-    data.aws_eks_cluster.eks
+    module.lb_role
   ]
 }
