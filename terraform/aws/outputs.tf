@@ -5,7 +5,8 @@ data "aws_lb" "hub_svc_lb" {
     "kubernetes.io/service-name" = "${var.deploy_namespace}/hubsvc"
   }
   depends_on = [
-    helm_release.grid_cluster
+    helm_release.grid_cluster,
+    helm_release.nginx_ingress
   ]
 }
 
