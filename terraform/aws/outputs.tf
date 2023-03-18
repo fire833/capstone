@@ -1,8 +1,8 @@
 
 data "aws_lb" "hub_svc_lb" {
   tags = {
-    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
-    "kubernetes.io/service-name" = "${var.deploy_namespace}/hubsvc"
+    "elbv2.k8s.aws/cluster" = "${var.cluster_name}"
+    "service.k8s.aws/stack" = "${var.deploy_namespace}/hubsvc"
   }
   depends_on = [
     helm_release.grid_cluster,
@@ -11,7 +11,7 @@ data "aws_lb" "hub_svc_lb" {
 }
 
 output "grid-endpoint" {
-  value = data.aws_lb.hub_svc_lb.dns_name
+  value = "http://${data.aws_lb.hub_svc_lb.dns_name}:9994/"
   depends_on = [
     data.aws_lb.hub_svc_lb
   ]

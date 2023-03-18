@@ -10,6 +10,10 @@ resource "helm_release" "grid_cluster" {
     name  = "cloud_provider"
     value = "AWS"
   }
+
+  depends_on = [
+    helm_release.nginx_ingress
+  ]
 }
 
 resource "helm_release" "nginx_ingress" {
@@ -26,6 +30,25 @@ resource "helm_release" "nginx_ingress" {
 
   set {
     name = "serviceAccount.create"
-    value = true
+    value = "false"
   }
+
+  set {
+    name = "serviceAccount.name"
+    value = "aws-load-balancer-controller"
+  }
+
+  set {
+    name = "vpcId"
+    value = module.vpc.vpc_id
+  }
+
+  set {
+    name = "region"
+    value = var.region
+  }
+
+  depends_on = [
+    kubernetes_service_account.service-account
+  ]
 }

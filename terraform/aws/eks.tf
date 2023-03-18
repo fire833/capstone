@@ -56,14 +56,12 @@ module "eks" {
   subnet_ids                     = module.vpc.private_subnets
   cluster_endpoint_public_access = true
 
-  aws_auth_node_iam_role_arns_non_windows = [ 
-    aws_iam_role.lb_role.arn
-  ]
 
   eks_managed_node_group_defaults = {
     ami_type = "AL2_x86_64"
 
   }
+
 
   eks_managed_node_groups = {
     primary = {
@@ -74,72 +72,39 @@ module "eks" {
       min_size     = var.node_count
       max_size     = var.node_count_max
       desired_size = var.node_count
+
     }
   }
 }
 
-data "aws_iam_policy_document" "lb_policies" {
-  statement {
-    actions = [ "ec2:DescribeVpcs",
-          "ec2:DescribeSecurityGroups",
-          "ec2:DescribeInstances",
-          "elasticloadbalancing:DescribeTargetGroups",
-          "elasticloadbalancing:DescribeTargetHealth",
-          "elasticloadbalancing:ModifyTargetGroup",
-          "elasticloadbalancing:ModifyTargetGroupAttriblutes",
-          "elasticloadbalancing:RegisterTargets",
-          "elasticloadbalancing:DeregisterTargets",
-          "elasticloadbalancing:DescribeLoadBalancers" ]
 
-    effect = "Allow"
-    resources = [ "*" ]
-    # principals {
-    #   type = "Service"
-    #   identifiers = [ "ec2.amazonaws.com" ]
-    # }
-  }
-}
 
-data "aws_iam_policy_document" "assume_role_policy" {
-  statement {
-    actions = [ "sts:AssumeRole" ]
-    effect = "Allow"
-    principals {
-      type = "Service"
-      identifiers = [ "ec2.amazonaws.com" ]
+module "lb_role" {
+  source    = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+
+  role_name = "${var.cluster_name}_eks_lb"
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
     }
   }
 }
 
-resource "aws_iam_role" "lb_role" {
-  name = "ab_role"
 
-  assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
-
-  inline_policy {
-    policy = data.aws_iam_policy_document.lb_policies.json
+resource "kubernetes_service_account" "service-account" {
+  metadata {
+    name = "aws-load-balancer-controller"
+    namespace = "kube-system"
+    labels = {
+        "app.kubernetes.io/name"= "aws-load-balancer-controller"
+        "app.kubernetes.io/component"= "controller"
+    }
+    annotations = {
+      "eks.amazonaws.com/role-arn" = module.lb_role.iam_role_arn
+      "eks.amazonaws.com/sts-regional-endpoints" = "true"
+    }
   }
-
-  # assume_role_policy = <<EOT
-  # {
-  #   "Statement" : [
-  #     {
-  #       "Action" : [
-  #         "ec2:DescribeVpcs",
-  #         "ec2:DescribeSecurityGroups",
-  #         "ec2:DescribeInstances",
-  #         "elasticloadbalancing:DescribeTargetGroups",
-  #         "elasticloadbalancing:DescribeTargetHealth",
-  #         "elasticloadbalancing:ModifyTargetGroup",
-  #         "elasticloadbalancing:ModifyTargetGroupAttributes",
-  #         "elasticloadbalancing:RegisterTargets",
-  #         "elasticloadbalancing:DeregisterTargets"
-  #       ],
-  #       "Effect" : "Allow",
-  #       "Resource" : "*"
-  #     }
-  #   ],
-  #   "Version" : "2012-10-17"
-  # }
-  # EOT
 }

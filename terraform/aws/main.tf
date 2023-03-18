@@ -40,6 +40,8 @@ provider "aws" {
   # secret_key = var.secret_access_key
 }
 
+
+
 provider "helm" {
   kubernetes {
     host                   = data.aws_eks_cluster.eks.endpoint
