@@ -91,10 +91,6 @@ module "lb_role" {
       namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
     }
   }
-
-  depends_on = [
-    module.eks
-  ]
 }
 
 
