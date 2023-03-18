@@ -3,7 +3,30 @@ entries:
   selenium-grid-cluster:
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-03-17T00:28:40.2385605-05:00"
+    created: "2023-03-17T21:24:26.720353-05:00"
+    dependencies:
+    - name: prometheus
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 19.6.1
+    - name: prometheus-adapter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 4.1.1
+    description: Helm chart for deploying a dynamically-scalable Selenium Grid cluster
+      and associated infrastructure.
+    digest: 7964a236726763fa89f37e212e33373e542671fccac5190ab99f30e238bbe01b
+    maintainers:
+    - email: kendall.tauser@ou.edu
+      name: Kendall Tauser
+      url: https://github.com/fire833
+    - name: Aaron Pierce
+    name: selenium-grid-cluster
+    type: application
+    urls:
+    - selenium-grid-cluster-0.3.4.tgz
+    version: 0.3.4
+  - apiVersion: v2
+    appVersion: 4.8.0
+    created: "2023-03-17T21:24:26.7149027-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -26,7 +49,7 @@ entries:
     version: 0.3.3
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-03-17T00:28:40.2324403-05:00"
+    created: "2023-03-17T21:24:26.7078913-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -49,7 +72,7 @@ entries:
     version: 0.3.2
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-03-17T00:28:40.2265381-05:00"
+    created: "2023-03-17T21:24:26.7015269-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -72,7 +95,7 @@ entries:
     version: 0.3.1
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-03-17T00:28:40.2210052-05:00"
+    created: "2023-03-17T21:24:26.6954352-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -93,4 +116,4 @@ entries:
     urls:
     - selenium-grid-cluster-0.3.0.tgz
     version: 0.3.0
-generated: "2023-03-17T00:28:40.214766-05:00"
+generated: "2023-03-17T21:24:26.6885645-05:00"

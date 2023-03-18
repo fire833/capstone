@@ -9,7 +9,11 @@ metadata:
       "9994": "hubsvc-ui-backendconfig"
       }}'
 spec:
+{{- if eq .Values.cloud_provider "AWS" }}
+  type: LoadBalancer
+{{- else }}
   type: NodePort
+{{- end }}
   selector:
     app: hub
   ports:
