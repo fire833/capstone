@@ -49,6 +49,7 @@ resource "helm_release" "nginx_ingress" {
   }
 
   depends_on = [
-    kubernetes_service_account.service-account
+    kubernetes_service_account.service-account,
+    module.eks
   ]
 }

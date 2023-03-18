@@ -75,6 +75,10 @@ module "eks" {
 
     }
   }
+
+  depends_on = [
+    module.vpc
+  ]
 }
 
 
@@ -91,6 +95,10 @@ module "lb_role" {
       namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
     }
   }
+
+  depends_on = [
+    module.eks
+  ]
 }
 
 
@@ -107,4 +115,8 @@ resource "kubernetes_service_account" "service-account" {
       "eks.amazonaws.com/sts-regional-endpoints" = "true"
     }
   }
+
+  depends_on = [
+    data.aws_eks_cluster.eks
+  ]
 }
