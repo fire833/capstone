@@ -45,6 +45,20 @@ resource "google_container_cluster" "primary" {
     }
   }
 
+  cluster_autoscaling {
+    enabled = true
+
+    resource_limits {
+      maximum = local.cluster_autoscaling_max_cpu_cores
+      resource_type = "cpu"
+    }
+  
+    resource_limits {
+      maximum = local.cluster_autoscaling_max_gb_ram
+      resource_type = "memory"
+    }
+  }
+
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",

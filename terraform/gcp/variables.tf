@@ -24,7 +24,23 @@ variable "cluster_version" {
   default     = "1.24"
 }
 
-# variable "access_key" {
-#   description = "Provide access key for authentication"
-# }
+variable "max_selenium_nodes" {
+  description = "Specify the maximum number of selenium nodes which can be provisioned"
+  default = 10
+}
 
+variable "selenium_node_cpu_limit" {
+  description = "Specify how many milli CPU cores a selenium node may use."
+  default = 250
+}
+
+variable "selenium_node_ram_limit" {
+  description = "Specify how many megabytes of RAM a selenium node may use."
+  default = 250
+}
+
+
+locals {
+  cluster_autoscaling_max_cpu_cores = ceil(var.max_selenium_nodes * (var.selenium_node_cpu_limit / 1000))
+  cluster_autoscaling_max_gb_ram    = ceil(var.max_selenium_nodes * (var.selenium_node_ram_limit / 1000))
+}
