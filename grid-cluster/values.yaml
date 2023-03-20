@@ -191,3 +191,21 @@ prometheus-adapter:
         as: "selenium_grid_session_util_percent"
       resources:
         namespaced: false
+    - seriesQuery: '{__name__=~"^selenium_grid_chrome_.*_sessions_aggregated$"}'
+      metricsQuery: "(avg_over_time(selenium_grid_chrome_num_sessions_aggregated[10s]) / selenium_grid_chrome_max_sessions_aggregated)* 100"
+      name:
+        as: "selenium_grid_chrome_session_util_percent"
+      resources:
+        namespaced: false
+    - seriesQuery: '{__name__=~"^selenium_grid_edge_.*_sessions_aggregated$"}'
+      metricsQuery: "(avg_over_time(selenium_grid_edge_num_sessions_aggregated[10s]) / selenium_grid_edge_max_sessions_aggregated)* 100"
+      name:
+        as: "selenium_grid_edge_session_util_percent"
+      resources:
+        namespaced: false
+    - seriesQuery: '{__name__=~"^selenium_grid_firefox_.*_sessions_aggregated$"}'
+      metricsQuery: "(avg_over_time(selenium_grid_firefox_num_sessions_aggregated[10s]) / selenium_grid_firefox_max_sessions_aggregated)* 100"
+      name:
+        as: "selenium_grid_firefox_session_util_percent"
+      resources:
+        namespaced: false

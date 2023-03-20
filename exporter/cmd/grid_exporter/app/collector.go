@@ -189,10 +189,10 @@ func (c *GridCollector) Collect(ch chan<- prometheus.Metric) {
 			if node.Availability != "UP" {
 				continue
 			} else {
-				// maxSessions += node.MaxSessions
+				maxSessions += node.MaxSessions
 
 				for _, slot := range node.Slots {
-					maxSessions++
+					// maxSessions++
 
 					switch slot.Stereotype.BrowserName {
 					case "chrome":

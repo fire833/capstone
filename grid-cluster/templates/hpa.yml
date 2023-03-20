@@ -19,7 +19,7 @@ spec:
   - type: External
     external:
       metric:
-        name: "selenium_grid_session_util_percent"
+        name: "selenium_grid_chrome_session_util_percent"
       target:
         type: "Value"
         value: {{ .Values.nodes.chrome.scalingUtilizationPercentage }}
@@ -48,7 +48,7 @@ spec:
   - type: External
     external:
       metric:
-        name: "selenium_grid_session_util_percent"
+        name: "selenium_grid_edge_session_util_percent"
       target:
         type: "Value"
         value: {{ .Values.nodes.edge.scalingUtilizationPercentage }}
@@ -77,7 +77,7 @@ spec:
   - type: External
     external:
       metric:
-        name: "selenium_grid_session_util_percent"
+        name: "selenium_grid_firefox_session_util_percent"
       target:
         type: "Value"
         value: {{ .Values.nodes.firefox.scalingUtilizationPercentage }}
