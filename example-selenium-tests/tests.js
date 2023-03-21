@@ -37,15 +37,22 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 };
 exports.__esModule = true;
 var selenium_webdriver_1 = require("selenium-webdriver");
-var fs_1 = require("fs");
 function runTest(i) {
     return __awaiter(this, void 0, void 0, function () {
-        var rand, driver, title, file;
+        var browser, driver, title;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
-                    rand = Math.random();
-                    return [4 /*yield*/, new selenium_webdriver_1.Builder().forBrowser(rand < 2 ? 'chrome' : 'firefox').build()];
+                    browser = (function () {
+                        var rand = Math.random();
+                        if (rand <= 0.3)
+                            return "chrome";
+                        if (rand <= 0.6)
+                            return "MicrosoftEdge";
+                        else
+                            return "firefox";
+                    })();
+                    return [4 /*yield*/, new selenium_webdriver_1.Builder().forBrowser(browser).build()];
                 case 1:
                     driver = _a.sent();
                     return [4 /*yield*/, driver.get("https://google.com/search?q=newtest" + i)];
@@ -55,12 +62,14 @@ function runTest(i) {
                 case 3:
                     title = _a.sent();
                     console.log("Ran test I guess " + title);
-                    return [4 /*yield*/, driver.takeScreenshot()];
-                case 4:
-                    file = _a.sent();
-                    fs_1.writeFileSync("./ss/ss-" + i + ".png", Buffer.from(file, 'base64'));
+                    //	await new Promise(resolve => setTimeout(resolve, 3000));
+                    //    let file = await driver.takeScreenshot();
+                    //	writeFileSync(`./ss/ss-${i}.png`, Buffer.from(file, 'base64'));
                     return [4 /*yield*/, driver.quit()];
-                case 5:
+                case 4:
+                    //	await new Promise(resolve => setTimeout(resolve, 3000));
+                    //    let file = await driver.takeScreenshot();
+                    //	writeFileSync(`./ss/ss-${i}.png`, Buffer.from(file, 'base64'));
                     _a.sent();
                     return [2 /*return*/];
             }
@@ -75,6 +84,6 @@ var _loop_1 = function (i) {
         console.error("Error in test " + i + ":", err);
     });
 };
-for (var i = 0; i < 30; i++) {
+for (var i = 0; i < 100; i++) {
     _loop_1(i);
 }
