@@ -182,38 +182,34 @@ prometheus-adapter:
       metricsQuery: "selenium_grid_num_nodes"
       resources:
         namespaced: false
-    - seriesQuery: "selenium_grid_num_sessions"
-      metricsQuery: "selenium_grid_num_sessions"
+    - seriesQuery: "selenium_grid_num_sessions_aggregated"
+      metricsQuery: "selenium_grid_num_sessions_aggregated"
       resources:
         namespaced: false
-      name:
-        as: "selenium_grid_num_sessions"
-    - seriesQuery: "selenium_grid_max_sessions"
-      metricsQuery: "selenium_grid_max_sessions"
+    - seriesQuery: "selenium_grid_max_sessions_aggregated"
+      metricsQuery: "selenium_grid_max_sessions_aggregated"
       resources:
         namespaced: false
-      name:
-        as: "selenium_grid_max_sessions"
     - seriesQuery: '{__name__=~"^selenium_grid_.*_sessions_aggregated$"}'
-      metricsQuery: "(avg_over_time(selenium_grid_num_sessions_aggregated[10s]) / selenium_grid_max_sessions_aggregated)* 100"
+      metricsQuery: "(avg_over_time(selenium_grid_num_sessions_aggregated[10s]) / selenium_grid_max_sessions_aggregated) * 100"
       name:
         as: "selenium_grid_session_util_percent"
       resources:
         namespaced: false
-    - seriesQuery: '{__name__=~"^selenium_grid_chrome_.*_sessions_aggregated$"}'
-      metricsQuery: "(avg_over_time(selenium_grid_chrome_num_sessions_aggregated[10s]) / selenium_grid_chrome_max_sessions_aggregated)* 100"
+    - seriesQuery: '{__name__=~"^selenium_grid_chrome_.*_sessions$"}'
+      metricsQuery: "(avg_over_time(selenium_grid_chrome_num_sessions[10s]) / selenium_grid_chrome_max_sessions) * 100"
       name:
         as: "selenium_grid_chrome_session_util_percent"
       resources:
         namespaced: false
-    - seriesQuery: '{__name__=~"^selenium_grid_edge_.*_sessions_aggregated$"}'
-      metricsQuery: "(avg_over_time(selenium_grid_edge_num_sessions_aggregated[10s]) / selenium_grid_edge_max_sessions_aggregated)* 100"
+    - seriesQuery: '{__name__=~"^selenium_grid_edge_.*_sessions$"}'
+      metricsQuery: "(avg_over_time(selenium_grid_edge_num_sessions[10s]) / selenium_grid_edge_max_sessions) * 100"
       name:
         as: "selenium_grid_edge_session_util_percent"
       resources:
         namespaced: false
-    - seriesQuery: '{__name__=~"^selenium_grid_firefox_.*_sessions_aggregated$"}'
-      metricsQuery: "(avg_over_time(selenium_grid_firefox_num_sessions_aggregated[10s]) / selenium_grid_firefox_max_sessions_aggregated)* 100"
+    - seriesQuery: '{__name__=~"^selenium_grid_firefox_.*_sessions$"}'
+      metricsQuery: "(avg_over_time(selenium_grid_firefox_num_sessions[10s]) / selenium_grid_firefox_max_sessions) * 100"
       name:
         as: "selenium_grid_firefox_session_util_percent"
       resources:
