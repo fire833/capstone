@@ -24,23 +24,37 @@ variable "cluster_version" {
   default     = "1.24"
 }
 
-variable "max_selenium_nodes" {
+
+variable "max_chrome_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
   default = 10
 }
 
+
+variable "max_firefox_nodes" {
+  description = "Specify the maximum number of selenium nodes which can be provisioned"
+  default = 11
+}
+
+variable "max_edge_nodes" {
+  description = "Specify the maximum number of selenium nodes which can be provisioned"
+  default = 12
+}
+
 variable "selenium_node_cpu_limit" {
   description = "Specify how many milli CPU cores a selenium node may use."
-  default = 250
+  default = 300
 }
 
 variable "selenium_node_ram_limit" {
   description = "Specify how many megabytes of RAM a selenium node may use."
-  default = 250
+  default = 500
 }
 
 
 locals {
-  cluster_autoscaling_max_cpu_cores = ceil(var.max_selenium_nodes * (var.selenium_node_cpu_limit / 1000))
-  cluster_autoscaling_max_gb_ram    = ceil(var.max_selenium_nodes * (var.selenium_node_ram_limit / 1000))
+  is_zonal = length(regexall("^[a-z]$", substr(var.region, -1, 1))) == 1
+  max_selenium_nodes = var.max_chrome_nodes + var.max_firefox_nodes + var.max_edge_nodes + (var.node_count * (local.is_zonal ? 1 : 3))
+  cluster_autoscaling_max_cpu_cores = ceil(local.max_selenium_nodes * (var.selenium_node_cpu_limit / 1000))
+  cluster_autoscaling_max_gb_ram    = ceil(local.max_selenium_nodes * (var.selenium_node_ram_limit / 1000))
 }

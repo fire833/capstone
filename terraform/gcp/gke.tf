@@ -48,6 +48,10 @@ resource "google_container_cluster" "primary" {
   cluster_autoscaling {
     enabled = true
 
+    auto_provisioning_defaults {
+      disk_size = 15
+    }
+
     resource_limits {
       maximum = local.cluster_autoscaling_max_cpu_cores
       resource_type = "cpu"
