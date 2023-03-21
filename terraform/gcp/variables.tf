@@ -2,7 +2,7 @@
 
 variable "region" {
   description = "Specify the region you want to deploy to. This may also be a zone name to create a zonal cluster."
-  default     = "us-central1"
+  default     = "us-east1"
 }
 
 variable "project_id" {
@@ -47,27 +47,27 @@ variable "max_chrome_nodes" {
 
 variable "max_firefox_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
-  default = 11
+  default = 10
 }
 
 variable "max_edge_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
-  default = 12
+  default = 10
 }
 
 variable "selenium_node_cpu_limit" {
   description = "Specify how many milli CPU cores a selenium node may use."
-  default = 300
+  default = 900
 }
 
 variable "selenium_node_ram_limit" {
   description = "Specify how many megabytes of RAM a selenium node may use."
-  default = 500
+  default = 750
 }
 
 
 locals {
   max_selenium_nodes = var.max_chrome_nodes + var.max_firefox_nodes + var.max_edge_nodes
-  cluster_autoscaling_max_cpu_cores = var.base_autoscaling_cpu + (local.max_selenium_nodes * (var.selenium_node_cpu_limit / 1000))
-  cluster_autoscaling_max_gb_ram    = var.base_autoscaling_ram + (local.max_selenium_nodes * (var.selenium_node_ram_limit / 1000))
+  cluster_autoscaling_max_cpu_cores = var.base_autoscaling_cpu + ceil(local.max_selenium_nodes * (var.selenium_node_cpu_limit / 1000))
+  cluster_autoscaling_max_gb_ram    = var.base_autoscaling_ram + ceil(local.max_selenium_nodes * (var.selenium_node_ram_limit / 1000))
 }
