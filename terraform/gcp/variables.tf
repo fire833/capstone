@@ -14,6 +14,11 @@ variable "node_count" {
   default = 1
 }
 
+variable "node_type" {
+  description = "Specify the GCP VM type for nodes in the initial node pool"
+  default = "e2-medium"
+}
+
 variable "cluster_name" {
   description = "Specify the name for your cluster."
   default = "grid-cluster"
@@ -24,6 +29,15 @@ variable "cluster_version" {
   default     = "1.24"
 }
 
+variable "base_autoscaling_cpu" {
+  description = "Specify the number of CPU cores which you expect the default node pool to consume, otherwise the default node pool utilization will count against the autoscaling limits"
+  default = 4
+}
+
+variable "base_autoscaling_ram" {
+  description = "Specify the gigabytes of RAM which you expect the default node pool to consume, otherwise the default node pool utilization will count against the autoscaling limits"
+  default = 4
+}
 
 variable "max_chrome_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
@@ -53,8 +67,7 @@ variable "selenium_node_ram_limit" {
 
 
 locals {
-  is_zonal = length(regexall("^[a-z]$", substr(var.region, -1, 1))) == 1
-  max_selenium_nodes = var.max_chrome_nodes + var.max_firefox_nodes + var.max_edge_nodes + (var.node_count * (local.is_zonal ? 1 : 3))
-  cluster_autoscaling_max_cpu_cores = ceil(local.max_selenium_nodes * (var.selenium_node_cpu_limit / 1000))
-  cluster_autoscaling_max_gb_ram    = ceil(local.max_selenium_nodes * (var.selenium_node_ram_limit / 1000))
+  max_selenium_nodes = var.max_chrome_nodes + var.max_firefox_nodes + var.max_edge_nodes
+  cluster_autoscaling_max_cpu_cores = var.base_autoscaling_cpu + (local.max_selenium_nodes * (var.selenium_node_cpu_limit / 1000))
+  cluster_autoscaling_max_gb_ram    = var.base_autoscaling_ram + (local.max_selenium_nodes * (var.selenium_node_ram_limit / 1000))
 }
