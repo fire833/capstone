@@ -1,24 +1,87 @@
+{{- if .Values.nodes.chrome.enabled }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: nodepoolautoscaler
+  name: selenium-chrome-nodes-autoscaler
   namespace: {{ .Release.namespace }}
+  labels:
+    app: selenium-nodes
+    browser: selenium-chrome-nodes
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: selnodepool
-  minReplicas: {{ .Values.nodes.minReplicas }}
-  maxReplicas: {{ .Values.nodes.maxReplicas }}
+    name: selenium-chrome-nodes
+  minReplicas: {{ .Values.nodes.chrome.minReplicas }}
+  maxReplicas: {{ .Values.nodes.chrome.maxReplicas }}
   metrics:
   - type: External
     external:
       metric:
-        name: "selenium_grid_session_util_percent"
+        name: "selenium_grid_chrome_session_util_percent"
       target:
         type: "Value"
-        value: {{ .Values.nodes.scalingUtilizationPercentage }}
+        value: {{ .Values.nodes.chrome.scalingUtilizationPercentage }}
   behavior:
     scaleDown:
-      stabilizationWindowSeconds: {{ .Values.nodes.stabilizationWindowSeconds }}
+      stabilizationWindowSeconds: {{ .Values.nodes.chrome.stabilizationWindowSeconds }}
+{{- end }}
+{{- if .Values.nodes.edge.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: selenium-edge-nodes-autoscaler
+  namespace: {{ .Release.namespace }}
+  labels:
+    app: selenium-nodes
+    browser: selenium-edge-nodes
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: selenium-edge-nodes
+  minReplicas: {{ .Values.nodes.edge.minReplicas }}
+  maxReplicas: {{ .Values.nodes.edge.maxReplicas }}
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: "selenium_grid_edge_session_util_percent"
+      target:
+        type: "Value"
+        value: {{ .Values.nodes.edge.scalingUtilizationPercentage }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.nodes.edge.stabilizationWindowSeconds }}
+{{- end }}
+{{- if .Values.nodes.firefox.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: selenium-firefox-nodes-autoscaler
+  namespace: {{ .Release.namespace }}
+  labels:
+    app: selenium-nodes
+    browser: selenium-firefox-nodes
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: selenium-firefox-nodes
+  minReplicas: {{ .Values.nodes.firefox.minReplicas }}
+  maxReplicas: {{ .Values.nodes.firefox.maxReplicas }}
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: "selenium_grid_firefox_session_util_percent"
+      target:
+        type: "Value"
+        value: {{ .Values.nodes.firefox.scalingUtilizationPercentage }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.nodes.firefox.stabilizationWindowSeconds }}
+{{- end }}

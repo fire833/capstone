@@ -14,13 +14,23 @@ const gridNs string = "selenium_grid"
 type GridCollector struct {
 	hubhost string
 
-	hubUp                    prometheus.Gauge
-	deSerErr                 prometheus.Gauge
-	numNodes                 prometheus.Gauge
-	numUsedSessionsAggregate prometheus.Gauge
-	maxSessionsAggregate     prometheus.Gauge
-	queueSize                prometheus.Gauge
-	queueDeSerErr            prometheus.Gauge
+	hubUp    prometheus.Gauge
+	deSerErr prometheus.Gauge
+	numNodes prometheus.Gauge
+
+	currSessionsAggregate prometheus.Gauge
+	maxSessionsAggregate  prometheus.Gauge
+
+	currChromeSessions  prometheus.Gauge
+	currFirefoxSessions prometheus.Gauge
+	currEdgeSessions    prometheus.Gauge
+
+	maxChromeSessions  prometheus.Gauge
+	maxFirefoxSessions prometheus.Gauge
+	maxEdgeSessions    prometheus.Gauge
+
+	queueSize     prometheus.Gauge
+	queueDeSerErr prometheus.Gauge
 
 	ready prometheus.Gauge
 
@@ -67,7 +77,7 @@ func NewGridCollector(hub string) *GridCollector {
 			Help:      "This metric provides the current number of nodes within the Selenium Grid cluster",
 		}),
 
-		numUsedSessionsAggregate: prometheus.NewGauge(prometheus.GaugeOpts{
+		currSessionsAggregate: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: gridNs,
 			Subsystem: "",
 			Name:      "num_sessions_aggregated",
@@ -79,6 +89,48 @@ func NewGridCollector(hub string) *GridCollector {
 			Subsystem: "",
 			Name:      "max_sessions_aggregated",
 			Help:      "This metric provides an aggregated quantity of the maximum number of sessions able to be run within this Selenium Grid cluster",
+		}),
+
+		currChromeSessions: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "chrome",
+			Name:      "num_sessions",
+			Help:      "This metric provides a quantity of the number of Chrome sessions running within this Selenium Grid cluster",
+		}),
+
+		currFirefoxSessions: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "firefox",
+			Name:      "num_sessions",
+			Help:      "This metric provides a quantity of the number of Firefox sessions running within this Selenium Grid cluster",
+		}),
+
+		currEdgeSessions: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "edge",
+			Name:      "num_sessions",
+			Help:      "This metric provides a quantity of the number of Microsoft Edge sessions running within this Selenium Grid cluster",
+		}),
+
+		maxChromeSessions: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "chrome",
+			Name:      "max_sessions",
+			Help:      "This metric provides a quantity of the maximum number of Chrome sessions able to be run within this Selenium Grid cluster",
+		}),
+
+		maxFirefoxSessions: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "firefox",
+			Name:      "max_sessions",
+			Help:      "This metric provides a quantity of the maximum number of Firefox sessions able to be run within this Selenium Grid cluster",
+		}),
+
+		maxEdgeSessions: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: gridNs,
+			Subsystem: "edge",
+			Name:      "max_sessions",
+			Help:      "This metric provides a quantity of the maximum number of Microsoft Edge sessions able to be run within this Selenium Grid cluster",
 		}),
 
 		queueSize: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -125,7 +177,13 @@ func (c *GridCollector) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		maxSessions := 0
+		maxChromeSessions := 0
+		maxFirefoxSessions := 0
+		maxEdgeSessions := 0
 		currSessions := 0
+		currChromeSessions := 0
+		currFirefoxSessions := 0
+		currEdgeSessions := 0
 
 		for _, node := range c.deserialized.Value.Nodes {
 			if node.Availability != "UP" {
@@ -134,9 +192,42 @@ func (c *GridCollector) Collect(ch chan<- prometheus.Metric) {
 				maxSessions += node.MaxSessions
 
 				for _, slot := range node.Slots {
+					// maxSessions++
+
+					switch slot.Stereotype.BrowserName {
+					case "chrome":
+						{
+							maxChromeSessions++
+						}
+					case "firefox":
+						{
+							maxFirefoxSessions++
+						}
+					case "MicrosoftEdge":
+						{
+							maxEdgeSessions++
+						}
+					}
+
 					if slot.Session != nil {
 						currSessions++
+
+						switch slot.Stereotype.BrowserName {
+						case "chrome":
+							{
+								currChromeSessions++
+							}
+						case "firefox":
+							{
+								currFirefoxSessions++
+							}
+						case "MicrosoftEdge":
+							{
+								currEdgeSessions++
+							}
+						}
 					}
+
 				}
 			}
 
@@ -149,9 +240,24 @@ func (c *GridCollector) Collect(ch chan<- prometheus.Metric) {
 		c.maxSessionsAggregate.Set(float64(maxSessions))
 		ch <- c.maxSessionsAggregate
 		// Set the current utilized sessions
-		c.numUsedSessionsAggregate.Set(float64(currSessions))
-		ch <- c.numUsedSessionsAggregate
+		c.currSessionsAggregate.Set(float64(currSessions))
+		ch <- c.currSessionsAggregate
 
+		// Set the current sessions for the individual browsers
+		c.currChromeSessions.Set(float64(currChromeSessions))
+		ch <- c.currChromeSessions
+		c.currFirefoxSessions.Set(float64(currFirefoxSessions))
+		ch <- c.currFirefoxSessions
+		c.currEdgeSessions.Set(float64(currEdgeSessions))
+		ch <- c.currEdgeSessions
+
+		// Set the max sessions for the individual browsers
+		c.maxChromeSessions.Set(float64(maxChromeSessions))
+		ch <- c.maxChromeSessions
+		c.maxFirefoxSessions.Set(float64(maxFirefoxSessions))
+		ch <- c.maxFirefoxSessions
+		c.maxEdgeSessions.Set(float64(maxEdgeSessions))
+		ch <- c.maxEdgeSessions
 	}
 
 	if _, res, e1 := fasthttp.Get([]byte{}, c.hubhost+"/se/grid/newsessionqueue/queue"); e1 == nil {
