@@ -3,7 +3,7 @@ entries:
   selenium-grid-cluster:
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-03-20T21:42:14.380514463-05:00"
+    created: "2023-03-22T15:17:14.427858883-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -13,7 +13,30 @@ entries:
       version: 4.1.1
     description: Helm chart for deploying a dynamically-scalable Selenium Grid cluster
       and associated infrastructure.
-    digest: 763ea7d49c12ea36b255e223b3f072b5f050d22d6c21aece3357deeec67000a7
+    digest: 5a258da6f1c14adff494b7d85c137d72b8dab6969b4970b2228b13c3f2366efb
+    maintainers:
+    - email: kendall.tauser@ou.edu
+      name: Kendall Tauser
+      url: https://github.com/fire833
+    - name: Aaron Pierce
+    name: selenium-grid-cluster
+    type: application
+    urls:
+    - selenium-grid-cluster-0.6.0.tgz
+    version: 0.6.0
+  - apiVersion: v2
+    appVersion: 4.8.0
+    created: "2023-03-22T15:17:14.404537458-05:00"
+    dependencies:
+    - name: prometheus
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 19.6.1
+    - name: prometheus-adapter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 4.1.1
+    description: Helm chart for deploying a dynamically-scalable Selenium Grid cluster
+      and associated infrastructure.
+    digest: cb58baea89dcbfac3873bf0904942b6ed3740aef5c705d30c94480c09fc1d51c
     maintainers:
     - email: kendall.tauser@ou.edu
       name: Kendall Tauser
@@ -26,7 +49,7 @@ entries:
     version: 0.5.0
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-03-20T21:42:14.370721454-05:00"
+    created: "2023-03-22T15:17:14.384656506-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -47,4 +70,4 @@ entries:
     urls:
     - selenium-grid-cluster-0.4.0.tgz
     version: 0.4.0
-generated: "2023-03-20T21:42:14.360748617-05:00"
+generated: "2023-03-22T15:17:14.365124409-05:00"

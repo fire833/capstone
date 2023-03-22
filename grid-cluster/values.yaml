@@ -114,6 +114,12 @@ hub:
       # -- Specify the maximum cpu for the hub instance within the cluster.
       cpu: "250m"
 
+cloud_specific_config:
+
+
+  Azure:
+    load_balancer_ip: "none"
+
 # -- Configuration for the selenium grid exporter
 exporter:
 
