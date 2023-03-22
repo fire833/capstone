@@ -1,4 +1,4 @@
-resource "helm_release" "example" {
+resource "helm_release" "grid-chart-release" {
   name  = "grid-cluster-chart"
   repository = "https://fire833.github.io/capstone/"
   chart = "selenium-grid-cluster"
