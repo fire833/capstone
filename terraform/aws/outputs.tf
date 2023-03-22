@@ -5,8 +5,7 @@ data "aws_lb" "hub_svc_lb" {
     "service.k8s.aws/stack" = "${var.deploy_namespace}/hubsvc"
   }
   depends_on = [
-    helm_release.grid_cluster,
-    helm_release.nginx_ingress
+    helm_release.grid_cluster
   ]
 }
 

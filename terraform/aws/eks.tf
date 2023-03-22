@@ -47,10 +47,12 @@ module "vpc" {
 # Configure the actual cluster resource with your AWS account.
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "19.5.1"
+  version = "19.10.1"
 
   cluster_name    = var.cluster_name
   cluster_version = var.cluster_version
+
+  node_security_group_enable_recommended_rules = true
 
   vpc_id                         = module.vpc.vpc_id
   subnet_ids                     = module.vpc.private_subnets
@@ -63,14 +65,19 @@ module "eks" {
     iam_role_additional_policies = {
       additional = aws_iam_policy.lb-policy.arn
     }
-  }
 
+    tags = {
+      "k8s.io/cluster-autoscaler/${var.cluster_name}" = "owned"
+      "k8s.io/cluster-autoscaler/enabled" = true
+    }
+  }
 
   eks_managed_node_groups = {
     primary = {
+
       name = "node-group-1"
 
-      instance_types = ["t3.small"]
+      instance_types = ["${var.instance_type}"]
 
       min_size     = var.node_count
       max_size     = var.node_count_max
@@ -140,4 +147,116 @@ resource "kubernetes_service_account" "service-account" {
   depends_on = [
     module.lb_role
   ]
+}
+
+
+locals {
+  autoscaler-sa-name = "aws-auto-scaler-sa"
+  autoscaler-sa-namespace = "kube-system"
+}
+
+resource "aws_iam_policy" "autoscaler-policy" {
+  name = "autoscaler-policy"
+  policy = jsonencode(jsondecode(<<EOF
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "VisualEditor0",
+                "Effect": "Allow",
+                "Action": [
+                    "autoscaling:SetDesiredCapacity",
+                    "autoscaling:TerminateInstanceInAutoScalingGroup"
+                ],
+                "Resource": "*",
+                "Condition": {
+                    "StringEquals": {
+                        "aws:ResourceTag/k8s.io/cluster-autoscaler/${var.cluster_name}": "owned"
+                    }
+                }
+            },
+            {
+                "Sid": "VisualEditor1",
+                "Effect": "Allow",
+                "Action": [
+                    "autoscaling:DescribeAutoScalingInstances",
+                    "autoscaling:DescribeAutoScalingGroups",
+                    "ec2:DescribeLaunchTemplateVersions",
+                    "autoscaling:DescribeTags",
+                    "autoscaling:DescribeLaunchConfigurations",
+                    "ec2:DescribeInstanceTypes"
+                ],
+                "Resource": "*"
+            }
+        ]
+    }
+    EOF
+    ))
+}
+
+resource "aws_iam_role" "autoscaler-role" {
+  name = "autoscaler-role"
+  assume_role_policy = <<EOF
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "Federated": "${module.eks.oidc_provider_arn}"
+          },
+          "Action": "sts:AssumeRoleWithWebIdentity",
+          "Condition": {
+            "StringEquals": {
+              "${module.eks.oidc_provider}:aud": "sts.amazonaws.com",
+              "${module.eks.oidc_provider}:sub": "system:serviceaccount:${local.autoscaler-sa-namespace}:${local.autoscaler-sa-name}"
+            }
+          }
+        }
+      ]
+    }
+    EOF
+    
+  inline_policy {
+    name = "autoscaler-role-policy"
+    policy = aws_iam_policy.autoscaler-policy.policy
+  }
+}
+
+
+
+resource "kubernetes_service_account" "autoscaler-service-account" {
+  metadata {
+    name      = local.autoscaler-sa-name
+    namespace = local.autoscaler-sa-namespace
+    labels = {
+      "app.kubernetes.io/name"      = local.autoscaler-sa-name
+      "app.kubernetes.io/component" = "controller"
+    }
+    annotations = {
+      "eks.amazonaws.com/role-arn"               = aws_iam_role.autoscaler-role.arn
+      "eks.amazonaws.com/sts-regional-endpoints" = "true"
+    }
+  }
+  depends_on = [
+    module.eks,
+    aws_iam_role.autoscaler-role
+  ]
+}
+
+
+module "iam_eks_role" {
+  source    = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  role_name = "autoscaler-eks-role"
+
+  role_policy_arns = {
+    policy = aws_iam_policy.autoscaler-policy.arn
+  }
+
+  oidc_providers = {
+    one = {
+      provider_arn = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["${local.autoscaler-sa-namespace}:${local.autoscaler-sa-name}"]
+    }
+  }
 }
