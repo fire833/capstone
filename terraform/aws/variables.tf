@@ -59,7 +59,7 @@ variable "selenium_node_ram_limit" {
 
 variable "instance_type" {
   description = "Specify the instance type to use for EC2 nodes in the cluster"
-  default = "c7g.xlarge"
+  default = "c6a.xlarge"
 }
 
 # variable "access_key" {
