@@ -1,5 +1,15 @@
 
 
+## Tearing down
+
+You need to manually delete the load balancer which gets created to make the grid externally accessible.
+From the console in the region with the cluster, go to EC2 -> load balancers, and delete the load balancer,
+then run `terraform destroy`. 
+
+The load balancer will be cleaned up at some point once it is disassociated from the 
+hub service, but it will prevent the VPC from being deleted until that time comes,
+so it's best to manually delete it, otherwise the destroy command will time out.
+
 ## Common Issues
 
 

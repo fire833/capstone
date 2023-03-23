@@ -10,3 +10,5 @@ To deploy for Azure, you must:
     password = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     ```
 4. Run `terraform apply`
+
+After, you can run `az aks get-credentials --resource-group $(terraform output -raw resource_group_name) --name $(terraform output -raw kubernetes_cluster_name)` to automatically configure kubectl
