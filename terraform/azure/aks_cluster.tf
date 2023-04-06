@@ -38,7 +38,7 @@ resource "azurerm_kubernetes_cluster" "grid-cluster" {
     node_count          = var.initial_nodes
     max_count           = var.max_nodes
     min_count           = var.min_nodes
-    vm_size             = "Standard_F4s_v2"
+    vm_size             = "${var.vm_size}"
     os_disk_size_gb     = 30
     enable_auto_scaling = true
   }
