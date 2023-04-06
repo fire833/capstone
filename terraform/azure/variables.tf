@@ -44,15 +44,29 @@ variable "max_chrome_nodes" {
   default = 10
 }
 
+variable "min_chrome_nodes" {
+  description = "Specify the minimum number of selenium nodes which can be provisioned"
+  default = 1
+}
 
 variable "max_firefox_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
   default = 10
 }
 
+variable "min_firefox_nodes" {
+  description = "Specify the minimum number of selenium nodes which can be provisioned"
+  default = 1
+}
+
 variable "max_edge_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
   default = 10
+}
+
+variable "min_edge_nodes" {
+  description = "Specify the minimum number of selenium nodes which can be provisioned"
+  default = 1
 }
 
 variable "selenium_node_cpu_limit" {

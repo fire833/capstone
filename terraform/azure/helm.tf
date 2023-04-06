@@ -44,15 +44,31 @@ resource "helm_release" "grid-chart-release" {
     name = "nodes.chrome.maxReplicas"
     value = tostring(var.max_chrome_nodes)
   }
+  
+  set {
+    name = "nodes.chrome.minReplicas"
+    value = tostring(var.min_chrome_nodes)
+  }
+
+
 
   set {
     name = "nodes.firefox.maxReplicas"
     value = tostring(var.max_firefox_nodes)
   }
+  set {
+    name = "nodes.firefox.minReplicas"
+    value = tostring(var.min_firefox_nodes)
+  }
+  
   
   set {
     name = "nodes.edge.maxReplicas"
     value = tostring(var.max_edge_nodes)
+  }
+  set {
+    name = "nodes.edge.minReplicas"
+    value = tostring(var.min_edge_nodes)
   }
 }
 
