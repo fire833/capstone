@@ -3,10 +3,13 @@ use crate::conf::{API_BIND_IP, API_BIND_PORT};
 use crate::hub::Hub;
 use crate::routing::{RoutingDecision};
 use crate::schema::Session;
+use crate::ui::WebUIAssets;
 use dashmap::DashMap;
 use hyper::StatusCode;
 use log::info;
 use uuid::Uuid;
+use warp::path::Tail;
+use warp::reply::Response;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -49,16 +52,23 @@ pub async fn hub_api_thread(
         .and(sessions_filter.clone())
         .and_then(get_sessions);
 
+    let get_ui = warp::get()
+        .and(warp::path("ui"))
+        .and(warp::path::tail())
+        .and_then(serve_ui);
+
     let routes = get_hubs
         .or(create_hub)
         .or(delete_hub)
         .or(get_sessions)
+        .or(get_ui)
         .or(warp::any().map(|| {
             Ok(warp::reply::with_status(
                 reply::reply(),
                 StatusCode::NOT_FOUND,
             ))
-        }));
+        }))
+        .with(warp::cors().allow_any_origin().allow_methods(vec!["GET", "POST", "OPTIONS"]));
 
     warp::serve(routes)
         .run(config_to_tuple(config.as_ref()))
@@ -116,6 +126,24 @@ async fn get_sessions(
     }
 
     Ok(warp::reply::json(&sess))
+}
+
+async fn serve_ui(tail: Tail) -> Result<impl warp::Reply, warp::Rejection>  {
+    let path = if tail.as_str() == "" { "index.html" } else { tail.as_str() };
+
+    let maybe_file = WebUIAssets::get(path);
+    match maybe_file {
+        Some(file) => {
+            Ok(
+                warp::reply::with_header(Response::new(file.data), "Content-Type", mime_guess::from_path(path).first_or_octet_stream().to_string())
+            )
+        },
+        None => {
+            Err(
+                warp::reject::not_found()
+            )
+        },
+    }
 }
 
 /// terrible function to parse contents from configuration and return the address to bind on.

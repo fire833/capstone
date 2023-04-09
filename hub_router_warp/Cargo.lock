@@ -471,6 +471,7 @@ dependencies = [
  "hyper",
  "lazy_static",
  "log",
+ "mime_guess",
  "rand",
  "regex",
  "rust-embed",
