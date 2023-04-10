@@ -1,5 +1,5 @@
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
-#[folder = "hubrouter_ui/build"]
+#[folder = "hub_router_ui/dist"]
 pub struct WebUIAssets;
