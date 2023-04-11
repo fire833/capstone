@@ -142,3 +142,9 @@ impl Session {
         }
     }
 }
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HubGraphQLQuery {
+    pub query: String
+}
