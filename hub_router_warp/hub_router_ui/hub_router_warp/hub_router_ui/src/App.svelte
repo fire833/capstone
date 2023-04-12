@@ -4,6 +4,7 @@
     type ApiStatusData,
   } from "./lib/data";
   import Hub from "./Hub.svelte";
+    import AddHub from "./AddHub.svelte";
 
 
   function sort_hubs(hubs: ApiStatusData[]): ApiStatusData[] {
@@ -29,6 +30,7 @@
         {#each sort_hubs($api_data.data) as hub_data}
           <Hub {hub_data}></Hub>
         {/each}
+        <AddHub></AddHub>
       </div>
     </div>
   </div>
