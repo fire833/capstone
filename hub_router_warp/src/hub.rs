@@ -1,3 +1,11 @@
+use std::{collections::{HashSet, hash_map::DefaultHasher}, net::IpAddr, sync::Arc, time::Duration, hash::{Hash, self, Hasher}};
+
+use base64::Engine;
+use dashmap::DashMap;
+use hyper::{Body, Client, Method, Request, Uri};
+use serde::{Deserialize, Serialize};
+use tokio::task::JoinSet;
+
 use crate::{
     routing::Endpoint,
     schema::{
@@ -6,11 +14,7 @@ use crate::{
         HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema, NewSessionRequestCapability,
     }, HubMap,
 };
-use hyper::{Body, Client, Method, Request};
 use log::{info, warn};
-use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, sync::Arc, time::Duration};
-use tokio::task::JoinSet;
 use url::Url;
 use uuid::Uuid;
 
@@ -75,28 +79,6 @@ impl HubState {
 
     pub fn get_readiness(&self) -> HubReadiness {
         self.readiness
-    }
-}
-
-impl Default for Hub {
-    fn default() -> Self {
-        let url_str = "http://localhost:4444";
-
-        let url = Url::parse(url_str).expect("this url should be valid");
-
-        Self {
-            meta: HubMetadata {
-                name: String::from("unknown"),
-                url,
-                uuid: uuid::Uuid::new_v4(),
-            },
-            state: HubState {
-                fullness: 0,
-                stereotypes: HashSet::new(),
-                readiness: HubReadiness::Unhealthy,
-                consecutive_healthcheck_failures: 0
-            },
-        }
     }
 }
 
