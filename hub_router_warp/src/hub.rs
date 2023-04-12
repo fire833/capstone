@@ -1,4 +1,4 @@
-use std::{collections::{HashSet, hash_map::DefaultHasher}, net::IpAddr, sync::Arc, time::Duration, hash::{Hash, self, Hasher}};
+use std::{collections::{HashSet, hash_map::DefaultHasher}, net::IpAddr, sync::Arc, time::Duration, hash::{Hash, Hasher}};
 
 use base64::Engine;
 use dashmap::DashMap;
