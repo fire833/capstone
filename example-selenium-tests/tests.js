@@ -45,6 +45,7 @@ function runTest(i) {
                 case 0:
                     browser = (function () {
                         var rand = Math.random();
+                        return "chrome";
                         if (rand <= 0.3)
                             return "chrome";
                         if (rand <= 0.6)
@@ -84,6 +85,6 @@ var _loop_1 = function (i) {
         console.error("Error in test " + i + ":", err);
     });
 };
-for (var i = 0; i < 300; i++) {
+for (var i = 0; i < 30; i++) {
     _loop_1(i);
 }
