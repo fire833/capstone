@@ -75,6 +75,7 @@ h6 {
   --foreground: #d8e8f0;
   --foreground-lightened: #F0EBD822;
   --foreground-secondary: #748CAB;
+  --foreground-secondary-light: #84a0c4;
   --foreground-secondary-trans: #748CAB44;
   --middle: #3E5C76;
 }
