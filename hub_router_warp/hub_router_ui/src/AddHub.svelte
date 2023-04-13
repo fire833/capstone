@@ -1,17 +1,14 @@
 <script lang="ts">
     import { createEventDispatcher } from "svelte";
+    import Modal from "./Modal.svelte";
 
-    const dispatch = createEventDispatcher();
+
+    $: modal_active = false;
 
     function openModal() {
-        dispatch("open-register-hub-modal");
+        console.log("Calling open modal");
         modal_active = true;
     }
-
-    let modal_active: boolean = false;
-
-    let dialog: HTMLDialogElement;
-	$: if (dialog && modal_active) dialog.showModal();
 
     let hub_ip: string;
     let hub_port: string;
@@ -23,8 +20,29 @@
         hub_name = undefined;
     }
 
-    function registerHub(){
-        alert("Registering a new hub");
+    let error_text: string;
+
+    async function registerHub(){
+
+        error_text = undefined;
+
+        let res = await fetch(`${window.location.origin}/api/hubs`, {
+            method: "POST",
+            headers: [["Content-Type", "application/json"]],
+            body: JSON.stringify([{
+                ip: hub_ip,
+                port: parseInt(hub_port),
+                name: hub_name
+            }])
+        });
+
+
+        if(res.ok) {
+            modal_active = false;
+        } else {
+            error_text = `Error ${res.status} ${res.statusText} - ${await res.text()}`;
+        }
+        
     }
 </script>
 
@@ -37,11 +55,11 @@
     <span class="corner botright" />
 </div>
 
-<dialog bind:this={dialog} on:close={() => {modal_active = false; clearForm();}} on:click|self={() => dialog.close()} on:keypress={() => {}}>
+<Modal bind:modal_active>
     <div on:click|stopPropagation class="add-hub-modal-inner" on:keypress={() => {}}>
         <h1 style="line-height: 100%;">Register New Hub</h1>
         <hr style="margin-top: 0.5em;"/>
-
+    
         <form on:submit|preventDefault={registerHub}>
             <span>
                 <label for="hubip">Hub IP</label>
@@ -55,15 +73,19 @@
                 <label for="hubname">Hub Name</label>
                 <input bind:value={hub_name} id="hubname "type="text" placeholder="Example Hub"/>
             </span>
-
+    
             <button style="margin-top: 0.5em;">Register</button>
+    
+            {#if error_text}
+                <p style="color: var(--error);">{error_text}</p>
+            {/if}
         </form>
     </div>
     <div class="corner topleft" />
     <div class="corner topright" />
     <div class="corner botleft" />
     <div class="corner botright" />
-</dialog>
+</Modal>
 
 <style>
     .add-hub-card {
@@ -121,52 +143,29 @@
         transform: rotate(180deg);
     }
 
-    .hub-row h1 {
-        line-height: 100%;
-        margin: 0;
-        text-transform: capitalize;
-    }
-
     :global(.svg-override > svg) {
         width: 100%;
         height: 100%;
         vertical-align: middle;
     }
 
-    dialog {
-        margin: auto;
-        background-color: var(--background-secondary);
-        color: var(--foreground);
-        border: 5px solid var(--foreground-secondary);
-        padding: 0;
-        overflow: hidden;
-        position: relative;
-        --hash-color: var(--foreground-secondary);
-    }
-
-    dialog hr {
+    hr {
         border: 1px solid var(--middle);
     }
 
-    dialog::backdrop {
-		background: rgba(0, 0, 0, 0.3);
-	}
-
     .add-hub-modal-inner {
         padding: 2em;
-        /* padding-left: 2em; */
-        /* padding-right: 2em; */
         position: relative;
     }
 
-    dialog form {
+    form {
         margin-top: 1em;
         display: flex;
         flex-direction: column;
         gap: 1em
     }
 
-    dialog form input {
+    form input {
         background-color: rgba(0, 0, 0, 0);
         border: 4px solid var(--foreground-secondary-light);
         border-radius: 0;
@@ -174,28 +173,28 @@
         color: var(--foreground);
     }
 
-    dialog form input::placeholder {
+    form input::placeholder {
         color: var(--middle);
     }
 
-    dialog form label {
+    form label {
         color: var(--foreground-secondary);
         line-height: 100%;
 
     }
 
-    dialog form span {
+    form span {
         display: flex;
         flex-direction: column;
         gap: 0.25em;
     }
 
-    dialog form button {
+    form button {
         border: 4px solid var(--foreground-secondary-light);
         border-radius: 0;
     }
 
-    dialog form button:hover {
+    form button:hover {
         background-color: rgba(255, 255, 255, 0.1);
         box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
     }

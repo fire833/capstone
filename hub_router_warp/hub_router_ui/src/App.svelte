@@ -1,11 +1,7 @@
 <script lang="ts">
-  import {
-    api_data,
-    type ApiStatusData,
-  } from "./lib/data";
+  import { api_data, type ApiStatusData } from "./lib/data";
   import Hub from "./Hub.svelte";
-    import AddHub from "./AddHub.svelte";
-
+  import AddHub from "./AddHub.svelte";
 
   function sort_hubs(hubs: ApiStatusData[]): ApiStatusData[] {
     let copy = [...hubs];
@@ -14,7 +10,7 @@
     );
     return copy;
   }
-
+  
 </script>
 
 {#if $api_data.state === "Error"}
@@ -28,9 +24,9 @@
       <h1>Hubs ({$api_data.data.length})</h1>
       <div class="hubs-row">
         {#each sort_hubs($api_data.data) as hub_data}
-          <Hub {hub_data}></Hub>
+          <Hub {hub_data} />
         {/each}
-        <AddHub></AddHub>
+        <AddHub />
       </div>
     </div>
   </div>
@@ -63,6 +59,8 @@
     flex-direction: row;
     gap: 1.5em;
     margin-top: 0.5em;
+    /* overflow-x: scroll; */
+    flex-wrap: wrap;
+    padding-bottom: 1em;
   }
-
 </style>
