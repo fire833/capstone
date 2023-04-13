@@ -75,11 +75,6 @@ async fn get_hubs(hubs: Arc<DashMap<Endpoint, Hub>>) -> Result<impl warp::Reply,
 
     for hub in hubs.iter() {
         let mut c = hub.clone();
-
-        // remove username and password to avoid exposing that information.
-        c.username = None;
-        c.password = None;
-
         lhubs.push(c);
     }
 

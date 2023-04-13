@@ -1,9 +1,10 @@
-use std::{collections::HashSet, net::IpAddr, sync::Arc, time::Duration};
+use std::{collections::HashSet, default, net::IpAddr, sync::Arc, time::Duration};
 
 use dashmap::DashMap;
 use hyper::{Body, Client, Method, Request, Uri};
-use serde::{Deserialize, Serialize};
+use serde::{de::Visitor, Deserialize, Serialize};
 use tokio::task::JoinSet;
+use url::Url;
 
 use crate::{
     routing::Endpoint,
@@ -14,55 +15,156 @@ use crate::{
     },
 };
 
+/// SerializableURL is a wrapper around the standard url::Url type
+/// so that we can implement serialize and deserialize for it.
+/// We can't implement traits for aliased types that are external.
+///
+/// Pretty stupid, but its how rust stays happy.
+#[derive(Clone, Debug)]
+pub struct SerializableURL {
+    pub url: url::Url,
+}
+
+struct UrlVisitor;
+
+impl<'de> Visitor<'de> for UrlVisitor {
+    type Value = SerializableURL;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a valid, parseable url string")
+    }
+
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        match Url::parse(&v) {
+            Ok(url) => Ok(SerializableURL { url }),
+            Err(e) => Err(E::custom(e.to_string())),
+        }
+    }
+}
+
+impl Serialize for SerializableURL {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.url.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for SerializableURL {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(UrlVisitor)
+    }
+}
+
+impl Default for SerializableURL {
+    fn default() -> Self {
+        Self {
+            url: Url::parse("http://localhost:4444").expect("this url should be valid"),
+        }
+    }
+}
+
+/// HubReadiness represents the current status of a Hub as a enum.
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum HubReadiness {
-    Unhealthy,          // not responding to /status requests
-    HealthyButNotReady, // responds to /status requests but the ready response is false
-    Ready,              // response to /status with ready: true
+    /// not responding to /status requests
+    Unhealthy,
+
+    /// responds to /status requests but the ready response is false
+    HealthyButNotReady,
+
+    /// response to /status with ready: true
+    Ready,
+}
+
+impl Default for HubReadiness {
+    fn default() -> Self {
+        Self::Unhealthy
+    }
 }
 
 /// Hub is an internal representation for a remote Selenium Hub instance
-/// we wish to forward tests to.
-#[derive(Debug, Clone, Serialize)]
+/// we wish to forward tests to. This will be serialized to configuration files.
+/// To view runtime statistics and information about a Hub, this type can be cast
+/// to a HubExternal, which will serialize with all information for API consumption.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Hub {
+    #[serde(alias = "name")]
     pub name: String,
 
-    pub port: u16,
-    pub ip: IpAddr,
-    pub fullness: u8,
-    pub stereotypes: HashSet<HubStatusStereotypeJSONSchema>,
-    pub readiness: HubReadiness,
+    // The URL endpoint to reach this Hub.
+    #[serde(alias = "url")]
+    url_str: String,
 
-    // Optionally, provide credentials to pass on with any queries to the Hubs.
-    pub username: Option<String>,
-    pub password: Option<String>,
+    #[serde(skip)]
+    url: SerializableURL,
+
+    #[serde(skip)]
+    fullness: u8,
+    #[serde(skip)]
+    stereotypes: HashSet<HubStatusStereotypeJSONSchema>,
+    #[serde(skip)]
+    readiness: HubReadiness,
+}
+
+impl Default for Hub {
+    fn default() -> Self {
+        let url_str = "http://localhost:4444";
+
+        let url = SerializableURL {
+            url: Url::parse(url_str).expect("this url should be valid"),
+        };
+
+        Self {
+            name: String::from("unknown"),
+            url_str: String::from(url_str),
+            url,
+            fullness: 0,
+            stereotypes: HashSet::new(),
+            readiness: HubReadiness::Unhealthy,
+        }
+    }
 }
 
 impl Hub {
     /// Initialize a new Hub instance.
-    pub fn new(ip: IpAddr, port: u16) -> Hub {
-        Hub {
-            name: String::from("unknown"),
-            ip,
-            port,
-            fullness: 0,
-            stereotypes: HashSet::new(),
-            readiness: HubReadiness::Unhealthy,
-            username: None,
-            password: None,
+    pub fn new(url: &str) -> Result<Hub, url::ParseError> {
+        match url::Url::parse(url) {
+            Ok(url_parsed) => {
+                return Ok(Hub {
+                    name: String::from("unknown"),
+                    url_str: String::from(url),
+                    url: SerializableURL { url: url_parsed },
+                    fullness: 0,
+                    stereotypes: HashSet::new(),
+                    readiness: HubReadiness::Unhealthy,
+                })
+            }
+            Err(e) => return Err(e),
         }
     }
 
-    pub fn new_with_name(name: String, ip: IpAddr, port: u16) -> Hub {
-        Hub {
-            name,
-            ip,
-            port,
-            fullness: 0,
-            stereotypes: HashSet::new(),
-            readiness: HubReadiness::Unhealthy,
-            username: None,
-            password: None,
+    // Create a new Hub instance with a predefined name.
+    pub fn new_with_name(name: &str, url: &str) -> Result<Hub, url::ParseError> {
+        match url::Url::parse(url) {
+            Ok(url_parsed) => {
+                return Ok(Hub {
+                    name: String::from(name),
+                    url_str: String::from(url),
+                    url: SerializableURL { url: url_parsed },
+                    fullness: 0,
+                    stereotypes: HashSet::new(),
+                    readiness: HubReadiness::Unhealthy,
+                })
+            }
+            Err(e) => return Err(e),
         }
     }
 
@@ -86,6 +188,38 @@ impl Hub {
     #[allow(unused)]
     pub fn is_ready_and_capable(&self, capability: &NewSessionRequestCapability) -> bool {
         self.can_satisfy_capability(capability) && self.readiness == HubReadiness::Ready
+    }
+}
+
+/// HubExternal is the object for serializing/deserializing internal Hub information
+/// for reading and writing via the external API.
+#[derive(Debug)]
+#[allow(non_snake_case, unused)]
+pub struct HubExternal<'a> {
+    hub: &'a Hub,
+}
+
+impl<'a> Serialize for HubExternal<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.hub.name)?;
+        serializer.serialize_str(&self.hub.url.url.to_string())?;
+        serializer.serialize_i8(self.hub.fullness as i8)?;
+        match self.hub.readiness {
+            HubReadiness::Ready => serializer.serialize_str("ready"),
+            HubReadiness::Unhealthy => serializer.serialize_str("unhealthy"),
+            HubReadiness::HealthyButNotReady => serializer.serialize_str("healthynotready"),
+        }
+    }
+}
+
+impl<'de, 'a> Deserialize<'de> for HubExternal<'a> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
     }
 }
 

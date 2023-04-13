@@ -1,5 +1,3 @@
-use std::net::IpAddr;
-
 use serde::{Deserialize, Serialize};
 
 use crate::routing::Endpoint;
@@ -140,14 +138,4 @@ impl Session {
             endpoint,
         }
     }
-}
-
-/// HubExternal is the object for serializing/deserializing internal Hub information
-/// for reading and writing via the external API.
-#[derive(Debug, Serialize, Deserialize)]
-#[allow(non_snake_case, unused)]
-pub struct HubExternal {
-    pub name: String,
-    pub ip: IpAddr,
-    pub port: u16,
 }
