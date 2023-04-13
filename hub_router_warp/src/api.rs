@@ -197,13 +197,14 @@ async fn make_single_aggregate_request(
     req: Request<Bytes>,
 ) -> Result<AggregatedResponse, AggregatedError> {
     let (parts, body_bytes) = req.into_parts();
+    let uri_path = parts.uri.clone();
     let built_request = hyper::Request::from_parts(parts, hyper::Body::from(body_bytes));
     let client = Client::new();
     let response_future = client.request(built_request);
     let response = match timeout(Duration::from_secs(2), response_future).await {
         Ok(body) => body?,
         Err(_) => {
-            return Err(format!("Request timed out").into());
+            return Err(format!("Request to {} timed out", uri_path.path()).into());
         }
     };
 
