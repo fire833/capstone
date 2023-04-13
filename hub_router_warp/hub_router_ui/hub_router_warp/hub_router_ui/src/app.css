@@ -78,6 +78,7 @@ h6 {
   --foreground-secondary-light: #84a0c4;
   --foreground-secondary-trans: #748CAB44;
   --middle: #3E5C76;
+  --error: hsl(10, 80%, 60%);
 }
 
 

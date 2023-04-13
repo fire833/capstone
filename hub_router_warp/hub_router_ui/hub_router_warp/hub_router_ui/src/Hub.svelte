@@ -1,13 +1,8 @@
 <script lang="ts">
-    import Details from "./lib/Details.svelte";
-    import Nav from "./lib/Nav/Nav.svelte";
-    import { writable } from "svelte/store";
     import type {
-        ApiResponse,
         ApiStatusData,
         HubInfo,
     } from "./lib/data";
-    import Hub from "./lib/Hub.svelte";
 
     /**
      * Returns a hash code from a string
@@ -69,6 +64,7 @@
         mozillafirefox: Firefox,
         microsoftedge: Edge,
         safari: Safari,
+        opera: Opera
     };
 
     export let hub_data: ApiStatusData;
@@ -88,24 +84,31 @@
         </p>
     </div>
 
-    <div
-        style="display: flex; flex-direction: row; justify-content: space-evenly; margin-top: 0.5em;"
-    >
-        {#each compute_slots(hub_data.hub_status_response) as slot}
-            <div
-                style="display: flex; flex-direction: column; align-items: center; text-align: center;"
-            >
-                <div class="svg-override" style="width: 2em; height: 2em;">
-                    <svelte:component this={browser_name_to_icon[slot[0]]} />
-                </div>
-                <p
-                    style="color: var(--foreground-secondary); line-height: 100%; text-align: center; margin-top: 0.1em;"
+    {#if hub_data.hub_status_response}
+        <div
+            style="display: flex; flex-direction: row; justify-content: space-evenly; margin-top: 0.5em;"
+        >
+            {#each compute_slots(hub_data.hub_status_response) as slot}
+                <div
+                    style="display: flex; flex-direction: column; align-items: center; text-align: center;"
                 >
-                    {slot[1]}/{slot[2]}
-                </p>
-            </div>
-        {/each}
-    </div>
+                    <div class="svg-override" style="width: 2em; height: 2em;">
+                        <svelte:component this={browser_name_to_icon[slot[0]]} />
+                    </div>
+                    <p
+                        style="color: var(--foreground-secondary); line-height: 100%; text-align: center; margin-top: 0.1em;"
+                    >
+                        {slot[1]}/{slot[2]}
+                    </p>
+                </div>
+            {/each}
+        </div>
+    {:else}
+        <div class="unhealthy-wrapper">
+            <h3>Unhealthy</h3>
+            <p>{hub_data.err}</p>
+        </div>
+    {/if}
 
     <span class="corner topleft" />
     <span class="corner topright" />
@@ -172,5 +175,10 @@
     width: 100%;
     height: 100%;
     vertical-align: middle;
+  }
+
+  .unhealthy-wrapper {
+    color: var(--error);
+    text-align: center;
   }
 </style>
