@@ -7,6 +7,16 @@ data "aws_eks_cluster" "eks" {
   depends_on = [
     module.eks
   ]
+
+}
+
+resource "terraform_data" "setup-kubeconfig" {
+  provisioner "local-exec" {
+    command = "aws eks update-kubeconfig --name ${var.cluster_name} --region ${var.region}"
+  }
+  depends_on = [
+    module.eks
+  ]
 }
 
 data "aws_eks_cluster_auth" "eks" {
@@ -85,6 +95,8 @@ module "eks" {
 
     }
   }
+
+
 }
 
 
@@ -131,7 +143,20 @@ module "lb_role" {
 
 
 
+resource "kubernetes_secret" "service-account-secret" {
+  provider = kubernetes.post-cluster
+  metadata {
+    name = "aws-load-balancer-controller"
+  }
+}
+
 resource "kubernetes_service_account" "service-account" {
+  provider = kubernetes.post-cluster
+
+  secret {
+    name = kubernetes_secret.service-account-secret.metadata[0].name
+  }
+
   metadata {
     name      = "aws-load-balancer-controller"
     namespace = "kube-system"
@@ -145,7 +170,7 @@ resource "kubernetes_service_account" "service-account" {
     }
   }
   depends_on = [
-    module.lb_role
+    module.lb_role  
   ]
 }
 
@@ -224,11 +249,24 @@ resource "aws_iam_role" "autoscaler-role" {
 }
 
 
+resource "kubernetes_secret" "autoscaler-service-account-secret" {
+  provider = kubernetes.post-cluster
+  metadata {
+    name = local.autoscaler-sa-name
+  }
+}
 
 resource "kubernetes_service_account" "autoscaler-service-account" {
+  provider = kubernetes.post-cluster
+
+  secret {
+    name = local.autoscaler-sa-name
+  }
+
   metadata {
     name      = local.autoscaler-sa-name
     namespace = local.autoscaler-sa-namespace
+
     labels = {
       "app.kubernetes.io/name"      = local.autoscaler-sa-name
       "app.kubernetes.io/component" = "controller"
