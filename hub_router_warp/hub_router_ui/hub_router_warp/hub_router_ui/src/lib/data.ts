@@ -9,7 +9,7 @@ export type ApiFetchError = {
 
 export type ApiResponse = {
     state: "Success",
-    data: ApiStatusData[]
+    data: APIStatusData[]
 }
 
 export type ApiLoading = {
@@ -18,62 +18,6 @@ export type ApiLoading = {
 
 export const api_data = writable<ApiLoading | ApiResponse | ApiFetchError>({ state: "Loading" });
 export const  breadcrumb = writable<number[]>([0, 1, 0]);
-
-export interface HubInfo {
-    value: HubInfoValue;
-}
-
-export interface HubInfoValue {
-    ready: boolean;
-    message: string;
-    nodes?: (NodesEntity)[] | null;
-}
-export interface NodesEntity {
-    id: string;
-    uri: string;
-    maxSessions: number;
-    osInfo: OsInfo;
-    heartbeatPeriod: number;
-    availability: string;
-    version: string;
-    slots?: (SlotsEntity)[] | null;
-}
-export interface OsInfo {
-    arch: string;
-    name: string;
-    version: string;
-}
-export interface SlotsEntity {
-    id: Id;
-    lastStarted: string;
-    session?: SessionEntity;
-    stereotype: Stereotype;
-}
-export interface Id {
-    hostId: string;
-    id: string;
-}
-export interface Stereotype {
-    browserName: string;
-    browserVersion: string;
-    platformName: string;
-    "se:noVncPort": number;
-    "se:vncEnabled": boolean;
-}
-
-export interface SessionEntity {
-    capabilities: Capabilities;
-    sessionId:    string;
-    start:        Date;
-    stereotype:   Stereotype;
-    uri:          string;
-}
-
-export interface Capabilities {
-    browserName:     string;
-    browserVersion:  string;
-    platformName:    string;
-}
 
 
 export type APIResult = {
@@ -85,28 +29,91 @@ export type APIResult = {
             error: string
         }
     },
-    "router_hub_state": {
-        ip: string,
-        port: number,
-        name: string
-    }
+    "router_hub_state": RouterHubState
 };
 
-export type ApiStatusData = {
-    "hub_status_response": HubInfo | null,
-    err?: string
-    "router_hub_state": {
-        ip: string,
-        port: number,
-        name: string
-    }
+export interface APIStatusData {
+    hub_status_response: HubInfo;
+    err: string;
+    router_hub_state:    RouterHubState;
 }
 
-function unmarshall(result: APIResult): ApiStatusData {
-    let status_response: HubInfo | null = JSON.parse(result.hub_status_response.Ok?.response ?? "null");
+export interface HubStatusResponse {
+    value: HubInfo;
+}
+
+export interface HubInfo {
+    ready:   boolean;
+    message: string;
+    nodes:   Node[];
+}
+
+export interface Node {
+    id:              string;
+    uri:             string;
+    maxSessions:     number;
+    osInfo:          OSInfo;
+    heartbeatPeriod: number;
+    availability:    string;
+    version:         string;
+    slots:           Slot[];
+}
+
+export interface OSInfo {
+    arch:    string;
+    name:    string;
+    version: string;
+}
+
+export interface Slot {
+    id:          ID;
+    lastStarted: Date;
+    session:     null;
+    stereotype:  SlotStereotype;
+}
+
+export interface ID {
+    hostId: string;
+    id:     string;
+}
+
+export interface SlotStereotype {
+    browserName:     string;
+    browserVersion:  string;
+    platformName:    string;
+    "se:noVncPort":  number;
+    "se:vncEnabled": boolean;
+}
+
+export interface RouterHubState {
+    meta:  Meta;
+    state: State;
+}
+
+export interface Meta {
+    name: string;
+    url:  string;
+    uuid: string;
+}
+
+export interface State {
+    fullness:                         number;
+    stereotypes:                      StereotypeElement[];
+    readiness:                        string;
+    consecutive_healthcheck_failures: number;
+}
+
+export interface StereotypeElement {
+    browserName:  string;
+    platformName: string;
+}
+
+
+function unmarshall(result: APIResult): APIStatusData {
+    let status_response: HubStatusResponse | null = JSON.parse(result.hub_status_response.Ok?.response ?? "null");
     
     return {
-        hub_status_response: status_response,
+        hub_status_response: status_response?.value,
         err: status_response === null ? result.hub_status_response.Err?.error : undefined,
         router_hub_state: result.router_hub_state
     }
@@ -151,7 +158,7 @@ export function follow_breadcrumb(
 ) {
     let hub = hubs[breadcrumb[0]];
     if (depth === 0) return hub;
-    let node = hub.value.nodes[breadcrumb[1]];
+    let node = hub.nodes[breadcrumb[1]];
     if (depth === 1) return node;
     let session = node.slots[breadcrumb[2]];
     return session;
@@ -164,7 +171,7 @@ export function get_breadcrumb_siblings(
 ) {
 
     if (depth === 0) return hubs;
-    let nodes = hubs[breadcrumb[0]].value.nodes;
+    let nodes = hubs[breadcrumb[0]].nodes;
     if (depth === 1) return nodes;
     let sessions = nodes[breadcrumb[1]].slots;
     return sessions;

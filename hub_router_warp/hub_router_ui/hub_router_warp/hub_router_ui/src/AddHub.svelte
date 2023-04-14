@@ -10,13 +10,11 @@
         modal_active = true;
     }
 
-    let hub_ip: string;
-    let hub_port: string;
+    let hub_url: string;
     let hub_name: string;
 
     function clearForm(){
-        hub_ip = undefined;
-        hub_port = undefined;
+        hub_url = undefined;
         hub_name = undefined;
     }
 
@@ -29,11 +27,10 @@
         let res = await fetch(`${window.location.origin}/api/hubs`, {
             method: "POST",
             headers: [["Content-Type", "application/json"]],
-            body: JSON.stringify([{
-                ip: hub_ip,
-                port: parseInt(hub_port),
+            body: JSON.stringify({
+                url: hub_url,
                 name: hub_name
-            }])
+            })
         });
 
 
@@ -55,19 +52,15 @@
     <span class="corner botright" />
 </div>
 
-<Modal bind:modal_active>
+<Modal bind:modal_active on:close_modal={clearForm}>
     <div on:click|stopPropagation class="add-hub-modal-inner" on:keypress={() => {}}>
         <h1 style="line-height: 100%;">Register New Hub</h1>
         <hr style="margin-top: 0.5em;"/>
     
         <form on:submit|preventDefault={registerHub}>
             <span>
-                <label for="hubip">Hub IP</label>
-                <input bind:value={hub_ip} id="hubip" type="text" placeholder="1.2.3.4"/>
-            </span>
-            <span>
-                <label for="hubport">Hub Port</label>
-                <input bind:value={hub_port} id="hubport" type="text" placeholder="9994"/>
+                <label for="huburl">Hub URL</label>
+                <input bind:value={hub_url} id="huburl" type="text" placeholder="http://myhuburl.com:1234/"/>
             </span>
             <span>
                 <label for="hubname">Hub Name</label>
