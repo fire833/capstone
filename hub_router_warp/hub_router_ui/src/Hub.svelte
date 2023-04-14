@@ -1,8 +1,5 @@
 <script lang="ts">
-    import type {
-        ApiStatusData,
-        HubInfo,
-    } from "./lib/data";
+    import type { APIStatusData, HubInfo } from "./lib/data";
 
     /**
      * Returns a hash code from a string
@@ -22,7 +19,7 @@
     }
 
     function compute_slots(hub: HubInfo): [string, number, number][] {
-        let nodes = hub.value.nodes;
+        let nodes = hub.nodes;
         let slots = nodes.flatMap((e) => e.slots);
         let browser_util: { [browserName: string]: [number, number] } = {};
         for (let s of slots) {
@@ -43,10 +40,10 @@
         return flat;
     }
 
-    function sort_hubs(hubs: ApiStatusData[]): ApiStatusData[] {
+    function sort_hubs(hubs: APIStatusData[]): APIStatusData[] {
         let copy = [...hubs];
         copy.sort((a, b) =>
-            a.router_hub_state.name.localeCompare(b.router_hub_state.name)
+            a.router_hub_state.meta.name.localeCompare(b.router_hub_state.meta.name)
         );
         return copy;
     }
@@ -64,23 +61,23 @@
         mozillafirefox: Firefox,
         microsoftedge: Edge,
         safari: Safari,
-        opera: Opera
+        opera: Opera,
     };
 
-    export let hub_data: ApiStatusData;
+    export let hub_data: APIStatusData;
 </script>
 
 <div
     class="hub-row"
     style="--hash-color: hsl({Math.abs(
-        hashCode(hub_data.router_hub_state.name)
-    ) % 360}, {(Math.abs(hashCode(hub_data.router_hub_state.name)) % 20) +
+        hashCode(hub_data.router_hub_state.meta.name)
+    ) % 360}, {(Math.abs(hashCode(hub_data.router_hub_state.meta.name)) % 20) +
         50}%, 72%)"
 >
     <div style="display: flex; flex-direction: column; align-items: center;">
-        <h1 class="notranslate">{hub_data.router_hub_state.name}</h1>
+        <h1 class="notranslate">{hub_data.router_hub_state.meta.name}</h1>
         <p style="color: var(--foreground-secondary)">
-            {hub_data.router_hub_state.ip}:{hub_data.router_hub_state.port}
+            {hub_data.router_hub_state.meta.url}
         </p>
     </div>
 
@@ -93,7 +90,9 @@
                     style="display: flex; flex-direction: column; align-items: center; text-align: center;"
                 >
                     <div class="svg-override" style="width: 2em; height: 2em;">
-                        <svelte:component this={browser_name_to_icon[slot[0]]} />
+                        <svelte:component
+                            this={browser_name_to_icon[slot[0]]}
+                        />
                     </div>
                     <p
                         style="color: var(--foreground-secondary); line-height: 100%; text-align: center; margin-top: 0.1em;"
@@ -117,68 +116,66 @@
     <!-- <h2>{hub_data.hub_status_response.value.nodes?.length} nodes</h2> -->
 </div>
 
-
 <style>
+    .hub-row {
+        color: var(--foreground);
+        border: 5px solid var(--hash-color);
+        padding: 1em;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25em;
+    }
 
-  .hub-row {
-    color: var(--foreground);
-    border: 5px solid var(--hash-color);
-    padding: 1em;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25em;
-  }
+    .corner {
+        content: "";
+        width: 8px;
+        height: 8px;
+        position: absolute;
+        top: -1px;
+        left: -1px;
+        background-color: var(--hash-color);
+        clip-path: polygon(100% 0, 0 0, 0 100%);
+    }
 
-  .corner {
-    content: "";
-    width: 8px;
-    height: 8px;
-    position: absolute;
-    top: -1px;
-    left: -1px;
-    background-color: var(--hash-color);
-    clip-path: polygon(100% 0, 0 0, 0 100%);
-  }
+    .corner.topright {
+        top: -1px;
+        bottom: unset;
+        left: unset;
+        right: -1px;
+        transform: rotate(90deg);
+    }
 
-  .corner.topright {
-    top: -1px;
-    bottom: unset;
-    left: unset;
-    right: -1px;
-    transform: rotate(90deg);
-  }
+    .corner.botleft {
+        top: unset;
+        bottom: -1px;
+        left: -1px;
+        right: unset;
+        transform: rotate(270deg);
+    }
 
-  .corner.botleft {
-    top: unset;
-    bottom: -1px;
-    left: -1px;
-    right: unset;
-    transform: rotate(270deg);
-  }
+    .corner.botright {
+        top: unset;
+        bottom: -1px;
+        left: unset;
+        right: -1px;
+        transform: rotate(180deg);
+    }
 
-  .corner.botright {
-    top: unset;
-    bottom: -1px;
-    left: unset;
-    right: -1px;
-    transform: rotate(180deg);
-  }
+    .hub-row h1 {
+        line-height: 100%;
+        margin: 0;
+        text-transform: capitalize;
+    }
 
-  .hub-row h1 {
-    line-height: 100%;
-    margin: 0;
-    text-transform: capitalize;
-  }
+    :global(.svg-override > svg) {
+        width: 100%;
+        height: 100%;
+        vertical-align: middle;
+    }
 
-  :global(.svg-override > svg) {
-    width: 100%;
-    height: 100%;
-    vertical-align: middle;
-  }
-
-  .unhealthy-wrapper {
-    color: var(--error);
-    text-align: center;
-  }
+    .unhealthy-wrapper {
+        color: var(--error);
+        text-align: center;
+    }
 </style>

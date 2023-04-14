@@ -1,24 +1,26 @@
 use crate::HubMap;
 use crate::conf::{API_BIND_IP, API_BIND_PORT};
-use crate::hub::Hub;
+use crate::hub::{Hub, HubMetadata};
 use crate::routing::{RoutingDecision};
 use crate::schema::Session;
 use crate::ui::WebUIAssets;
 use dashmap::DashMap;
 use log::info;
+use url::Url;
 use uuid::Uuid;
 use warp::path::Tail;
 use warp::reply::Response;
 use hyper::body::Bytes;
 use hyper::{Body, Client, Request, StatusCode, Uri};
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
-use warp::{reply, Filter};
+use warp::{reply, Filter, Rejection};
 
 /// Primary entrypoint for the API. Will run and provide information and capabilities to
 /// update information on the running Hub programatically.
@@ -42,7 +44,7 @@ pub async fn hub_api_thread(
         .and(warp::path::end())
         .and(hubs_filter.clone())
         .and(warp::body::content_length_limit(1024 * 16))
-        .and(warp::body::json::<Hub>())
+        .and(warp::body::json())
         .and_then(create_hub);
 
     let delete_hub = warp::delete()
@@ -110,20 +112,33 @@ async fn get_hubs(hubs: Arc<HubMap>) -> Result<impl warp::Reply, warp::Rejection
     Ok(warp::reply::json(&lhubs))
 }
 
+#[derive(Serialize, Deserialize)]
+struct HubNameAndURL {
+    name: String,
+    url: String
+}
 async fn create_hub(
     hubs: Arc<HubMap>,
-    new_hub: Hub,
+    meta: HubNameAndURL
 ) -> Result<impl warp::Reply, warp::Rejection> {
     println!("creating new hub...");
 
-    let uuid = &new_hub.meta.uuid;
-    if hubs.contains_key(uuid) {
+
+    let url = match Url::from_str(&meta.url){
+        Ok(url) => url,
+        Err(err) => {
+            return Ok(warp::reply::with_status(format!("Invalid hub URL: {}", &meta.url), StatusCode::BAD_REQUEST));
+        },
+    };
+
+    if hubs.iter().any(|e| &e.meta.url == &url) {
         return Ok(warp::reply::with_status(
-            format!("hub with id {} already registered", &uuid),
+            format!("hub at {} already registered", url.as_str()),
             StatusCode::NOT_ACCEPTABLE,
         ));
     } else {
-        hubs.insert(uuid.clone(), new_hub);
+        let new_hub = Hub::new_with_name(&meta.name, url);
+        hubs.insert(new_hub.meta.uuid, new_hub);
     }
 
     return Ok(warp::reply::with_status(
@@ -138,6 +153,10 @@ async fn delete_hub(
 ) -> Result<impl warp::Reply, warp::Rejection> {
     hubs.remove(&uuid);
     Ok(warp::reply::reply())
+}
+
+async fn handle_hub_creation_error(error: Rejection) -> Result<impl warp::Reply, warp::Rejection> {
+    return Ok(warp::reply::html(format!("Got hub creation error: {:#?}", error)));
 }
 
 async fn get_sessions(

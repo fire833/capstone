@@ -84,7 +84,23 @@ impl HubState {
 
 impl Hub {
     pub fn new(url: Url) -> Self {
-        Hub::new_with_name("unknown".into(), url)
+        let mut hasher = DefaultHasher::new();
+        (url).hash(&mut hasher);
+        let hash = hasher.finish() as u32;
+        let base64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(hash.to_le_bytes());
+        Hub::new_with_name(&format!("Hub_{}", base64), url)
+    }
+
+    pub fn from_meta(meta: HubMetadata) -> Self {
+        Self {
+            meta,
+            state: HubState {
+                fullness: 0,
+                stereotypes: HashSet::new(),
+                readiness: HubReadiness::Unhealthy,
+                consecutive_healthcheck_failures: 0
+            }
+        }
     }
 
     // Create a new Hub instance with a predefined name.

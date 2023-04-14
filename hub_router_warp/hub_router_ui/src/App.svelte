@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { api_data, type ApiStatusData } from "./lib/data";
+  import { api_data, type APIStatusData } from "./lib/data";
   import Hub from "./Hub.svelte";
   import AddHub from "./AddHub.svelte";
 
-  function sort_hubs(hubs: ApiStatusData[]): ApiStatusData[] {
+  function sort_hubs(hubs: APIStatusData[]): APIStatusData[] {
     let copy = [...hubs];
     copy.sort((a, b) =>
-      a.router_hub_state.name.localeCompare(b.router_hub_state.name)
+      a.router_hub_state.meta.name.localeCompare(b.router_hub_state.meta.name)
     );
     return copy;
   }
@@ -59,8 +59,18 @@
     flex-direction: row;
     gap: 1.5em;
     margin-top: 0.5em;
-    /* overflow-x: scroll; */
-    flex-wrap: wrap;
+    overflow-x: auto;
+    /* flex-wrap: wrap; */
     padding-bottom: 1em;
   }
+
+  .hubs-row::-webkit-scrollbar {
+    background-color: var(--middle);
+    height: 0.5em;
+  }
+
+  .hubs-row::-webkit-scrollbar-thumb {
+    background-color: var(--foreground-secondary);
+  }
+
 </style>

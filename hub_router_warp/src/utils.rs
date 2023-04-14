@@ -69,6 +69,7 @@ pub fn deserialize_url<'de, D>(deserializer: D) -> Result<url::Url, D::Error>
 where
     D: Deserializer<'de>,
 {
+    println!("Got a call to deserialize string");
     deserializer.deserialize_str(UrlVisitor)
 }
 
