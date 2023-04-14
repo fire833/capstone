@@ -1,28 +1,31 @@
-use dashmap::{mapref::multiple::RefMulti, DashMap};
-use hyper::{Body, Request, Uri};
-use rand::random;
-use std::{net::IpAddr, sync::Arc};
-use tokio::time::Instant;
-
 use crate::{
     error::{HubRouterError, RoutingError},
     hub::{Hub, HubReadiness},
-    schema::NewSessionRequestCapability,
+    schema::NewSessionRequestCapability, HubMap,
 };
+use dashmap::{mapref::multiple::RefMulti, DashMap};
+use hyper::{Body, Request, Uri};
+use rand::random;
+use uuid::Uuid;
+use std::{str::FromStr, sync::Arc};
+use tokio::time::Instant;
+use url::Url;
 
 pub type RoutingPrecedentMap = DashMap<String, RoutingDecision>;
-pub type Endpoint = (IpAddr, u16);
+pub type Endpoint = Url;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RoutingDecision {
-    pub endpoint: Endpoint,
+    pub hub_uuid: Uuid,
+    pub hub_endpoint: Url,
     pub decision_time: Instant,
 }
 
 impl RoutingDecision {
-    pub fn new(endpoint: Endpoint, decision_time: Instant) -> RoutingDecision {
+    pub fn new(hub_uuid: Uuid, hub_endpoint: Url, decision_time: Instant) -> RoutingDecision {
         RoutingDecision {
-            endpoint,
+            hub_uuid,
+            hub_endpoint,
             decision_time,
         }
     }
@@ -31,12 +34,12 @@ impl RoutingDecision {
 pub fn make_routing_decision(
     maybe_session_id: Option<String>,
     optional_requested_capabilities: Option<Vec<NewSessionRequestCapability>>,
-    routing_precedent_map: Arc<RoutingPrecedentMap>,
-    endpoint_state_map: Arc<DashMap<Endpoint, Hub>>,
-) -> Result<Endpoint, RoutingError> {
+    routing_map: Arc<RoutingPrecedentMap>,
+    endpoint_map: Arc<HubMap>,
+) -> Result<RoutingDecision, RoutingError> {
     if let Some(session_id) = &maybe_session_id {
-        if let Some(decision) = routing_precedent_map.get(session_id) {
-            return Ok(decision.endpoint);
+        if let Some(decision) = routing_map.get(session_id) {
+            return Ok(decision.clone());
         } else {
             println!("Got a sessionID who hasn't been assigned anything");
         }
@@ -44,9 +47,9 @@ pub fn make_routing_decision(
 
     println!("Making a routing decision for the first time!");
 
-    let mut healthy_hubs_iter = endpoint_state_map
+    let mut healthy_hubs_iter = endpoint_map
         .iter()
-        .filter(|h| h.readiness == HubReadiness::Ready)
+        .filter(|h| h.state.get_readiness() == HubReadiness::Ready)
         .peekable();
 
     if healthy_hubs_iter.peek().is_none() {
@@ -58,11 +61,11 @@ pub fn make_routing_decision(
     let healthy_hubs: Vec<_> = healthy_hubs_iter.collect();
 
     // get a list of hubs which satisfy the request
-    let potential_hubs: Option<Vec<&RefMulti<Endpoint, Hub>>> =
+    let potential_hubs: Option<Vec<&RefMulti<Uuid, Hub>>> =
         match &optional_requested_capabilities {
             None => Some(healthy_hubs.iter().collect()),
             Some(requested_capabilities) => {
-                let mut satisfying_hubs: Option<Vec<&RefMulti<Endpoint, Hub>>> = None;
+                let mut satisfying_hubs: Option<Vec<&RefMulti<Uuid, Hub>>> = None;
                 for capability in requested_capabilities {
                     let can_satisfy: Vec<_> = healthy_hubs
                         .iter()
@@ -77,47 +80,58 @@ pub fn make_routing_decision(
             }
         };
 
+        
     match potential_hubs {
         Some(hubs) => {
+            println!("Found {} healthy hubs to route to", hubs.len());
             let keys_and_weights: Vec<_> = hubs
                 .iter()
-                .map(|h| (h.key(), (100 - h.fullness) as u32))
+                .map(|h| (h.key(), (100 - h.state.get_fullness() + 1) as u32))
                 .collect();
 
             let weight_sum = keys_and_weights
                 .iter()
-                .fold(0, |acc: u32, (_, weight)| acc + weight + 1);
+                .fold(0, |acc: u32, (_, weight)| acc + weight);
 
             let selection_weight_distance: u32 = random::<u32>() % weight_sum;
             let mut accumulated_weight: u32 = 0;
 
-            let mut selected_hub: Option<Endpoint> = None;
-            for (endpoint, weight) in &keys_and_weights {
+            let mut selected_hub_uuid: Option<Uuid> = None;
+            for (uuid, weight) in keys_and_weights {
                 accumulated_weight += weight;
                 if accumulated_weight >= selection_weight_distance {
-                    selected_hub = Some((*endpoint).clone());
+                    selected_hub_uuid = Some(uuid.clone());
                     break;
                 }
             }
 
-            if selected_hub.is_none() {
+            if selected_hub_uuid.is_none() {
                 eprintln!("Weighted rolling never selected an endpoint - this shouldn't happen, falling back to uniform random");
-                selected_hub = Some(
-                    keys_and_weights
-                        .get(random::<usize>() % keys_and_weights.len())
-                        .unwrap()
-                        .0
-                        .clone(),
-                );
+                return Err(RoutingError::NoDecision("Internal Error | Weighted random routing was unable to select a hub".into()));
             }
 
-            let decision = selected_hub.unwrap();
+            let decision_uuid = match selected_hub_uuid {
+                Some(uuid) => uuid,
+                None => {
+                    return Err(RoutingError::NoDecision("Internal Error | Unable to select a hub for routing".into()));
+                }
+            };
+
+            let decision_ref = match endpoint_map.get(&decision_uuid) {
+                Some(hub) => hub,
+                None => {
+                    return Err(RoutingError::NoDecision("A hub was selected for routing, but could not be retrieved".into()));
+                }
+            };
+
+            let decision = RoutingDecision::new(decision_ref.key().clone(), decision_ref.value().meta.url.clone(), Instant::now());
+            println!("Made decision: {:#?}", decision);
 
             // Save it if we have a session id
             if let Some(session_id) = maybe_session_id {
-                routing_precedent_map.insert(
+                routing_map.insert(
                     session_id.to_string(),
-                    RoutingDecision::new(decision, Instant::now()),
+                    decision.clone(),
                 );
             }
             return Ok(decision);
@@ -135,7 +149,7 @@ pub fn make_routing_decision(
 
 pub fn apply_routing_decision(
     req: &mut Request<Body>,
-    (decision_ip, decision_port): &Endpoint,
+    endpoint: &Endpoint,
 ) -> Result<(), HubRouterError> {
     let path_string = match req.uri().path_and_query() {
         Some(p_q) => p_q.to_string(),
@@ -147,11 +161,12 @@ pub fn apply_routing_decision(
         }
     };
 
-    let endpoint_uri_result = Uri::builder()
-        .scheme("http")
-        .authority(format!("{}:{}", decision_ip, decision_port))
-        .path_and_query(path_string)
-        .build();
+    let endpoint_with_path = {
+        let mut ep = endpoint.clone();
+        ep.set_path(&path_string);
+        ep
+    };
+    let endpoint_uri_result = Uri::from_str(endpoint_with_path.as_str());
 
     let endpoint_uri = match endpoint_uri_result {
         Ok(uri) => uri,

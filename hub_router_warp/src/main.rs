@@ -1,23 +1,22 @@
+use crate::api::hub_api_thread;
+use crate::conf::load_in_config;
+use crate::hub::{hub_healthcheck_thread, Hub};
+use crate::state::HubRouterState;
+use ::config::Config;
 use clap::Parser;
 use dashmap::DashMap;
 use handler::handle;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
 use routing::{Endpoint, RoutingPrecedentMap};
+use uuid::Uuid;
 use std::convert::Infallible;
-
-use ::config::Config;
-
 #[allow(unused)]
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::{self, Instant};
-
-use crate::api::hub_api_thread;
-use crate::conf::load_in_config;
-use crate::hub::{hub_healthcheck_thread, Hub};
 
 mod api;
 mod conf;
@@ -27,6 +26,7 @@ mod hub;
 mod routing;
 mod schema;
 mod state;
+mod utils;
 
 #[derive(clap::Parser, Debug)]
 
@@ -40,7 +40,7 @@ struct Args {
     /// An ip:port endpoint to route to.
     /// Can be used multiple times.
     /// example: --endpoint 192.168.1.1:1234 --endpoint 192.168.1.2:4321
-    #[arg(long, value_parser=parse_ip)]
+    #[arg(long, value_parser=url::Url::parse)]
     endpoint: Vec<Endpoint>,
 
     /// Location to read in configuration file from.
@@ -48,47 +48,24 @@ struct Args {
     config_location: String,
 }
 
-fn parse_ip(s: &str) -> Result<Endpoint, String> {
-    let mut split = s.split(":");
-    let split_ip = split.next();
-    let split_port = split.next();
-
-    let ip_parse_result = match split_ip {
-        Some(ip_string) => IpAddr::from_str(ip_string),
-        None => return Err("Invalid IP address given".to_string()),
-    };
-
-    let port_parse_result = match split_port {
-        Some(port_str) => port_str.parse::<u16>(),
-        None => return Err("No port was given".to_string()),
-    };
-
-    let ip_addr = match ip_parse_result {
-        Ok(addr) => addr,
-        Err(e) => return Err(format!("Error parsing endpoint ip: {}", e)),
-    };
-
-    let port_u16 = match port_parse_result {
-        Ok(u16) => u16,
-        Err(e) => return Err(format!("Error parsing endpoint port: {}", e)),
-    };
-
-    Ok((ip_addr, port_u16))
-}
-
 #[test]
 fn test_parse_ip() {
-    let t1 = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
-    assert_eq!(Ok((t1, 5555)), parse_ip("127.0.0.1:5555"));
+    // let t1 = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+    // assert_eq!(Ok((t1, 5555)), parse_endpoint("127.0.0.1:5555"));
 
-    let t2 = IpAddr::V4(Ipv4Addr::new(10, 50, 1, 1));
-    assert_eq!(Ok((t2, 32456)), parse_ip("10.50.1.1:32456"));
+    // let t2 = IpAddr::V4(Ipv4Addr::new(10, 50, 1, 1));
+    // assert_eq!(Ok((t2, 32456)), parse_endpoint("10.50.1.1:32456"));
 }
+
+pub type HubMap = DashMap<Uuid, Hub>;
+
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
     let mut _config: Config;
+
+    let config = HubRouterState::new_from_disk(&args.config_location);
 
     match load_in_config(&args.config_location) {
         Ok(conf) => {
@@ -106,11 +83,11 @@ async fn main() {
     let _hubs_list: Vec<Hub> = args
         .endpoint
         .iter()
-        .map(|(ip, port)| Hub::new(ip.clone(), port.clone()))
+        .map(|url| Hub::new(url.clone()))
         .collect();
-    let _hubs: DashMap<Endpoint, Hub> = DashMap::new();
-    for h in _hubs_list {
-        _hubs.insert((h.ip, h.port), h);
+    let _hubs: HubMap = DashMap::new();
+    for h in &_hubs_list {
+        _hubs.insert(h.meta.uuid, h.clone());
     }
 
     // Global config.

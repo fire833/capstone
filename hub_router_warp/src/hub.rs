@@ -1,84 +1,24 @@
-use std::{collections::HashSet, default, net::IpAddr, sync::Arc, time::Duration};
-
-use dashmap::DashMap;
-use hyper::{Body, Client, Method, Request, Uri};
-use serde::{de::Visitor, Deserialize, Serialize};
-use tokio::task::JoinSet;
-use url::Url;
-
 use crate::{
     routing::Endpoint,
     schema::{
         HubStatusJSONSchema, HubStatusNodeJSONSchema, HubStatusNodeSlotIDJSONSchema,
         HubStatusNodeSlotJSONSchema, HubStatusNodeSlotSessionJSONSchema, HubStatusOSInfoJSONSchema,
         HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema, NewSessionRequestCapability,
-    },
+    }, HubMap,
 };
-
-/// SerializableURL is a wrapper around the standard url::Url type
-/// so that we can implement serialize and deserialize for it.
-/// We can't implement traits for aliased types that are external.
-///
-/// Pretty stupid, but its how rust stays happy.
-#[derive(Clone, Debug)]
-pub struct SerializableURL {
-    pub url: url::Url,
-}
-
-struct UrlVisitor;
-
-impl<'de> Visitor<'de> for UrlVisitor {
-    type Value = SerializableURL;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a valid, parseable url string")
-    }
-
-    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        match Url::parse(&v) {
-            Ok(url) => Ok(SerializableURL { url }),
-            Err(e) => Err(E::custom(e.to_string())),
-        }
-    }
-}
-
-impl Serialize for SerializableURL {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.url.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for SerializableURL {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_str(UrlVisitor)
-    }
-}
-
-impl Default for SerializableURL {
-    fn default() -> Self {
-        Self {
-            url: Url::parse("http://localhost:4444").expect("this url should be valid"),
-        }
-    }
-}
+use hyper::{Body, Client, Method, Request};
+use log::{info, warn};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashSet, sync::Arc, time::Duration};
+use tokio::task::JoinSet;
+use url::Url;
+use uuid::Uuid;
 
 /// HubReadiness represents the current status of a Hub as a enum.
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum HubReadiness {
     /// not responding to /status requests
     Unhealthy,
-
-    /// responds to /status requests but the ready response is false
-    HealthyButNotReady,
 
     /// response to /status with ready: true
     Ready,
@@ -94,83 +34,97 @@ impl Default for HubReadiness {
 /// we wish to forward tests to. This will be serialized to configuration files.
 /// To view runtime statistics and information about a Hub, this type can be cast
 /// to a HubExternal, which will serialize with all information for API consumption.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Hub {
-    #[serde(alias = "name")]
+    /// meta is the metadata associated with a hub. This includes the
+    /// endpoint, uuid, name, etc.
+    pub meta: HubMetadata,
+
+    /// state is the transient runtime state associated with a running hub.
+    /// This includes fullness, capabilities, etc.
+    pub state: HubState,
+}
+
+/// Persistent metadata ssociated with a hub.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HubMetadata {
     pub name: String,
 
-    // The URL endpoint to reach this Hub.
-    #[serde(alias = "url")]
-    url_str: String,
+    #[serde(serialize_with = "crate::utils::serialize_url")]
+    #[serde(deserialize_with = "crate::utils::deserialize_url")]
+    pub url: url::Url,
 
-    #[serde(skip)]
-    url: SerializableURL,
+    #[serde(serialize_with = "crate::utils::serialize_uuid")]
+    #[serde(deserialize_with = "crate::utils::deserialize_uuid")]
+    pub uuid: uuid::Uuid,
+}
 
-    #[serde(skip)]
-    fullness: u8,
-    #[serde(skip)]
-    stereotypes: HashSet<HubStatusStereotypeJSONSchema>,
-    #[serde(skip)]
-    readiness: HubReadiness,
+/// Transient state associated with a hub at runtime.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HubState {
+    pub fullness: u8,
+    pub stereotypes: HashSet<HubStatusStereotypeJSONSchema>,
+    pub readiness: HubReadiness,
+    pub consecutive_healthcheck_failures: u8,
+}
+
+impl HubState {
+    pub fn get_fullness(&self) -> u8 {
+        self.fullness
+    }
+
+    pub fn get_readiness(&self) -> HubReadiness {
+        self.readiness
+    }
 }
 
 impl Default for Hub {
     fn default() -> Self {
         let url_str = "http://localhost:4444";
 
-        let url = SerializableURL {
-            url: Url::parse(url_str).expect("this url should be valid"),
-        };
+        let url = Url::parse(url_str).expect("this url should be valid");
 
         Self {
-            name: String::from("unknown"),
-            url_str: String::from(url_str),
-            url,
-            fullness: 0,
-            stereotypes: HashSet::new(),
-            readiness: HubReadiness::Unhealthy,
+            meta: HubMetadata {
+                name: String::from("unknown"),
+                url,
+                uuid: uuid::Uuid::new_v4(),
+            },
+            state: HubState {
+                fullness: 0,
+                stereotypes: HashSet::new(),
+                readiness: HubReadiness::Unhealthy,
+                consecutive_healthcheck_failures: 0
+            },
         }
     }
 }
 
 impl Hub {
-    /// Initialize a new Hub instance.
-    pub fn new(url: &str) -> Result<Hub, url::ParseError> {
-        match url::Url::parse(url) {
-            Ok(url_parsed) => {
-                return Ok(Hub {
-                    name: String::from("unknown"),
-                    url_str: String::from(url),
-                    url: SerializableURL { url: url_parsed },
-                    fullness: 0,
-                    stereotypes: HashSet::new(),
-                    readiness: HubReadiness::Unhealthy,
-                })
-            }
-            Err(e) => return Err(e),
-        }
+    pub fn new(url: Url) -> Self {
+        Hub::new_with_name("unknown".into(), url)
     }
 
     // Create a new Hub instance with a predefined name.
-    pub fn new_with_name(name: &str, url: &str) -> Result<Hub, url::ParseError> {
-        match url::Url::parse(url) {
-            Ok(url_parsed) => {
-                return Ok(Hub {
-                    name: String::from(name),
-                    url_str: String::from(url),
-                    url: SerializableURL { url: url_parsed },
-                    fullness: 0,
-                    stereotypes: HashSet::new(),
-                    readiness: HubReadiness::Unhealthy,
-                })
-            }
-            Err(e) => return Err(e),
+    pub fn new_with_name(name: &str, url: Url) -> Self {
+        Self {
+            meta: HubMetadata {
+                name: name.into(),
+                url,
+                uuid: uuid::Uuid::new_v4(),
+            },
+            state: HubState {
+                fullness: 0,
+                stereotypes: HashSet::new(),
+                readiness: HubReadiness::Unhealthy,
+                consecutive_healthcheck_failures: 0
+            },
         }
     }
 
     /// Check to make sure that the current Hub will support the desired capability.
     pub fn can_satisfy_capability(&self, capability: &NewSessionRequestCapability) -> bool {
-        self.stereotypes.iter().any(|stereotype| {
+        self.state.stereotypes.iter().any(|stereotype| {
             let satisfies_browser = capability.browserName.is_none()
                 || (&stereotype.browserName)
                     .eq_ignore_ascii_case(capability.browserName.as_ref().unwrap());
@@ -187,39 +141,23 @@ impl Hub {
     /// desired capability.
     #[allow(unused)]
     pub fn is_ready_and_capable(&self, capability: &NewSessionRequestCapability) -> bool {
-        self.can_satisfy_capability(capability) && self.readiness == HubReadiness::Ready
+        self.can_satisfy_capability(capability) && self.state.readiness == HubReadiness::Ready
     }
-}
 
-/// HubExternal is the object for serializing/deserializing internal Hub information
-/// for reading and writing via the external API.
-#[derive(Debug)]
-#[allow(non_snake_case, unused)]
-pub struct HubExternal<'a> {
-    hub: &'a Hub,
-}
-
-impl<'a> Serialize for HubExternal<'a> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.hub.name)?;
-        serializer.serialize_str(&self.hub.url.url.to_string())?;
-        serializer.serialize_i8(self.hub.fullness as i8)?;
-        match self.hub.readiness {
-            HubReadiness::Ready => serializer.serialize_str("ready"),
-            HubReadiness::Unhealthy => serializer.serialize_str("unhealthy"),
-            HubReadiness::HealthyButNotReady => serializer.serialize_str("healthynotready"),
+    pub fn fail_healthcheck(&mut self) -> HubReadiness {
+        if self.state.consecutive_healthcheck_failures < u8::MAX {
+            self.state.consecutive_healthcheck_failures += 1;
         }
+        if self.state.consecutive_healthcheck_failures >= 3 {
+            self.state.readiness = HubReadiness::Unhealthy;
+        }
+        return self.state.readiness
     }
-}
 
-impl<'de, 'a> Deserialize<'de> for HubExternal<'a> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
+    pub fn succeed_healthcheck(&mut self) -> HubReadiness {
+        self.state.consecutive_healthcheck_failures = 0;
+        self.state.readiness = HubReadiness::Ready;
+        return self.state.readiness
     }
 }
 
@@ -331,34 +269,22 @@ enum HealthcheckErr {
     HyperError(hyper::Error),
 }
 
-pub async fn hub_healthcheck_thread(hubs: Arc<DashMap<Endpoint, Hub>>) {
-    println!("called hub healthcheck thread");
+pub async fn hub_healthcheck_thread(hubs: Arc<HubMap>) {
+    info!("starting healthcheck thread");
     let mut healthcheck_interval = tokio::time::interval(Duration::from_secs(1));
     loop {
-        let mut request_futures: JoinSet<(
-            IpAddr,
-            u16,
-            Result<HubStatusJSONSchema, HealthcheckErr>,
-        )> = {
-            let mut join_set: JoinSet<(IpAddr, u16, Result<HubStatusJSONSchema, HealthcheckErr>)> =
+        let mut request_futures: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> = {
+            let mut join_set: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> =
                 JoinSet::new();
-            let endpoints: Vec<Endpoint> = hubs
-                .iter()
-                .map(|h| (h.ip.clone(), h.port.clone()))
-                .collect();
+            let endpoints: Vec<(Uuid, Endpoint)> = hubs.iter().map(|h| (h.meta.uuid, h.meta.url.clone())).collect();
 
-            for (ip, port) in endpoints {
+            for (hub_uuid, _url) in endpoints {
                 let client = Client::new();
+                let mut request_url = _url.clone();
+                request_url.set_path("/status");
 
                 let request: Request<Body> = Request::builder()
-                    .uri(
-                        Uri::builder()
-                            .scheme("http")
-                            .authority(format!("{}:{}", ip, port))
-                            .path_and_query("/status")
-                            .build()
-                            .unwrap(),
-                    )
+                    .uri(request_url.to_string())
                     .method(Method::GET)
                     .body(hyper::body::Body::empty())
                     .unwrap();
@@ -374,11 +300,11 @@ pub async fn hub_healthcheck_thread(hubs: Arc<DashMap<Endpoint, Hub>>) {
                                 serde_json::Error,
                             > = serde_json::from_slice(&body_bytes);
                             match parsed_struct_result {
-                                Ok(parsed) => (ip, port, Ok(parsed)),
-                                Err(e) => (ip, port, Err(HealthcheckErr::DeserializError(e))),
+                                Ok(parsed) => (hub_uuid, Ok(parsed)),
+                                Err(e) => (hub_uuid, Err(HealthcheckErr::DeserializError(e))),
                             }
                         }
-                        Err(err) => (ip, port, Err(HealthcheckErr::HyperError(err))),
+                        Err(err) => (hub_uuid, Err(HealthcheckErr::HyperError(err))),
                     }
                 });
             }
@@ -387,40 +313,41 @@ pub async fn hub_healthcheck_thread(hubs: Arc<DashMap<Endpoint, Hub>>) {
 
         while let Some(res) = request_futures.join_next().await {
             match res {
-                Ok((ip, port, status_result)) => {
+                Ok((url, status_result)) => {
                     match status_result {
                         Ok(parsed_status) => {
-                            let is_ready = parsed_status.value.ready;
-                            match hubs.get_mut(&(ip, port)) {
+                            let is_ready = parsed_status.value.nodes.len() > 0;
+                            match hubs.get_mut(&url) {
                                 Some(mut hub) => {
-                                    hub.fullness = compute_hub_fullness(&parsed_status);
-                                    hub.readiness = if is_ready {
-                                        HubReadiness::Ready
+                                    hub.state.fullness = compute_hub_fullness(&parsed_status);
+                                    hub.state.readiness = if is_ready {
+                                        hub.succeed_healthcheck()
                                     } else {
-                                        HubReadiness::HealthyButNotReady
+                                        hub.fail_healthcheck()
                                     };
                                     parsed_status.value.nodes.iter().for_each(|node| {
                                         node.slots.iter().for_each(|slot| {
-                                            if !hub.stereotypes.contains(&slot.stereotype) {
-                                                hub.stereotypes.insert(slot.stereotype.clone());
+                                            if !hub.state.stereotypes.contains(&slot.stereotype) {
+                                                hub.state
+                                                    .stereotypes
+                                                    .insert(slot.stereotype.clone());
                                             }
                                         })
                                     });
-                                    // println!("Updated hub: {:#?}", hub.value());
                                 }
                                 None => {
-                                    eprintln!("[WARN] Somehow, a hub which we performed a healthcheck for is not in the map?")
+                                    warn!("Somehow, a hub which we performed a healthcheck for is not in the map?");
                                 }
                             }
                         }
                         Err(healthcheck_err) => {
                             eprintln!("Got healthcheck err: {:#?}", healthcheck_err);
-                            match hubs.get_mut(&(ip, port)) {
+                            match hubs.get_mut(&url) {
                                 Some(mut hub) => {
-                                    hub.readiness = HubReadiness::Unhealthy;
+                                    hub.fail_healthcheck();
                                 }
                                 None => {
-                                    eprintln!("[WARN] Somehow, a hub which we performed a healthcheck for is not in the map?")
+                                    warn!("Somehow, a hub which we performed a healthcheck for is not in the map?")
                                 }
                             }
                         }

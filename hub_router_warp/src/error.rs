@@ -5,6 +5,7 @@ pub enum RoutingError {
     NoHealthyNodes(String),
     UnableToSatisfyCapabilities(String),
     MalformedRequestPath(String),
+    NoDecision(String),
 }
 
 #[derive(Debug)]
@@ -12,6 +13,7 @@ pub enum HubRouterError {
     RoutingError(RoutingError),
     HyperError(hyper::Error),
     DeserializationError(serde_json::Error),
+    SessionCreationError(String),
     Internal(String),
 }
 

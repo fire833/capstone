@@ -128,14 +128,17 @@ pub struct NewSessionRequestCapability {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Session {
     id: String,
+
+    #[serde(serialize_with = "crate::utils::serialize_url")]
+    #[serde(deserialize_with = "crate::utils::deserialize_url")]
     endpoint: Endpoint,
 }
 
 impl Session {
-    pub fn new(id: &String, endpoint: Endpoint) -> Self {
+    pub fn new(id: &String, endpoint: &Endpoint) -> Self {
         Self {
             id: id.clone(),
-            endpoint,
+            endpoint: endpoint.clone(),
         }
     }
 }

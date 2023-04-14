@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use config::{Config, ConfigError, File};
 
 pub const REAPER_THREAD_INTERVAL_SECS: &str = "reaper_thread_interval";
@@ -10,7 +12,13 @@ pub const PROXY_BIND_PORT: &str = "proxy_bind_port";
 pub const PROXY_ENDPOINTS: &str = "proxy_endpoints";
 
 pub fn load_in_config(source: &String) -> Result<Config, ConfigError> {
-    let mut builder = Config::builder().add_source(File::with_name(source));
+    let mut builder = Config::builder();
+    if Path::new(source).exists() {
+        builder = builder.add_source(File::with_name(source));
+    } else {
+        eprintln!("Warning: given configuration file {} does not exist - falling back to default configuration", source);
+    }
+
 
     builder = builder.set_default(REAPER_THREAD_INTERVAL_SECS, 60)?;
     builder = builder.set_default(REAPER_MAX_SESSION_LIFETIME_MINS, 30)?;

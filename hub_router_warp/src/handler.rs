@@ -1,10 +1,3 @@
-use dashmap::DashMap;
-use hyper::{Body, Client, Method, Request, Response};
-use lazy_static::lazy_static;
-use regex::Regex;
-use std::sync::Arc;
-use tokio::time::Instant;
-
 use crate::{
     error::HubRouterError,
     hub::Hub,
@@ -12,8 +5,15 @@ use crate::{
         apply_routing_decision, make_routing_decision, Endpoint, RoutingDecision,
         RoutingPrecedentMap,
     },
-    schema::{NewSessionRequestBody, NewSessionRequestCapability, NewSessionResponse},
+    schema::{NewSessionRequestBody, NewSessionRequestCapability, NewSessionResponse}, HubMap,
 };
+use dashmap::DashMap;
+use hyper::{Body, Client, Method, Request, Response};
+use lazy_static::lazy_static;
+use regex::Regex;
+use std::sync::Arc;
+use tokio::time::Instant;
+use url::Url;
 
 fn extract_session_id(req: &Request<Body>) -> Option<String> {
     lazy_static! {
@@ -160,20 +160,20 @@ fn test_delete_session() {
 async fn handle_new_session_request(
     mut req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
-    endpoint_map: Arc<DashMap<Endpoint, Hub>>,
+    endpoint_map: Arc<HubMap>,
 ) -> Result<Response<Body>, HubRouterError> {
     let (requests, reconstructed_request) =
         extract_capabilities_from_new_session_request(req).await?;
     req = reconstructed_request;
 
-    let (ip, port) = make_routing_decision(
+    let routing_decision = make_routing_decision(
         None,
         Some(requests),
         routing_map.clone(),
         endpoint_map.clone(),
     )?;
 
-    apply_routing_decision(&mut req, &(ip, port))?;
+    apply_routing_decision(&mut req, &routing_decision.hub_endpoint)?;
 
     let client = Client::new();
     let response = client.request(req).await?;
@@ -184,21 +184,30 @@ async fn handle_new_session_request(
         "Got new session response: {}",
         String::from_utf8_lossy(&bytes)
     );
-    let new_session_response: NewSessionResponse = serde_json::from_slice(&bytes)?;
+    let maybe_new_session_response: Result<NewSessionResponse, serde_json::Error> = serde_json::from_slice(&bytes);
+    let new_session_response = match maybe_new_session_response {
+        Ok(res) => res,
+        Err(e) => {
+            return Err(HubRouterError::SessionCreationError(format!("Could not create session (this is likely because the hub is overloaded, increasing the hub's resource limits may be helpful): {}", String::from_utf8_lossy(&bytes))))
+        }
+    };
     let session_id = new_session_response.value.sessionId;
-    routing_map.insert(session_id, RoutingDecision::new((ip, port), Instant::now()));
+    routing_map.insert(
+        session_id.to_string(),
+        routing_decision,
+    );
     Ok(hyper::Response::from_parts(parts, hyper::Body::from(bytes)))
 }
 
 async fn forward_request(
     mut req: Request<Body>,
     _routing_map: Arc<RoutingPrecedentMap>,
-    _endpoint_map: Arc<DashMap<Endpoint, Hub>>,
+    _endpoint_map: Arc<HubMap>,
 ) -> Result<Response<Body>, HubRouterError> {
     let maybe_session_id = extract_session_id(&req);
     let routing_decision =
         make_routing_decision(maybe_session_id, None, _routing_map, _endpoint_map)?;
-    apply_routing_decision(&mut req, &routing_decision)?;
+    apply_routing_decision(&mut req, &routing_decision.hub_endpoint)?;
 
     let client = Client::new();
     HubRouterError::wrap_err(client.request(req).await)
@@ -207,7 +216,7 @@ async fn forward_request(
 async fn handle_delete_session_request(
     req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
-    _endpoint_map: Arc<DashMap<Endpoint, Hub>>,
+    _endpoint_map: Arc<HubMap>,
 ) -> Result<Response<Body>, HubRouterError> {
     let session_id = extract_session_id(&req);
     let result = forward_request(req, routing_map.clone(), _endpoint_map).await;
@@ -220,7 +229,7 @@ async fn handle_delete_session_request(
 pub async fn handle(
     req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
-    endpoint_map: Arc<DashMap<Endpoint, Hub>>,
+    endpoint_map: Arc<HubMap>,
 ) -> Result<Response<Body>, hyper::Error> {
     println!("Got req uri: {:#?}", req.uri());
     let maybe_session_id = extract_session_id(&req);
