@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::routing::Endpoint;
+use crate::{hub::Hub, routing::Endpoint};
 
 #[derive(Deserialize, Debug, Clone)]
 #[allow(non_snake_case, unused)]
@@ -141,4 +141,11 @@ impl Session {
             endpoint: endpoint.clone(),
         }
     }
+}
+
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HubGraphQLQuery {
+    pub query: String,
 }

@@ -1,3 +1,11 @@
+use std::{collections::{HashSet, hash_map::DefaultHasher}, net::IpAddr, sync::Arc, time::Duration, hash::{Hash, Hasher}};
+
+use base64::Engine;
+use dashmap::DashMap;
+use hyper::{Body, Client, Method, Request, Uri};
+use serde::{Deserialize, Serialize};
+use tokio::task::JoinSet;
+
 use crate::{
     routing::Endpoint,
     schema::{
@@ -6,11 +14,7 @@ use crate::{
         HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema, NewSessionRequestCapability,
     }, HubMap,
 };
-use hyper::{Body, Client, Method, Request};
 use log::{info, warn};
-use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, sync::Arc, time::Duration};
-use tokio::task::JoinSet;
 use url::Url;
 use uuid::Uuid;
 
@@ -78,31 +82,25 @@ impl HubState {
     }
 }
 
-impl Default for Hub {
-    fn default() -> Self {
-        let url_str = "http://localhost:4444";
+impl Hub {
+    pub fn new(url: Url) -> Self {
+        let mut hasher = DefaultHasher::new();
+        (url).hash(&mut hasher);
+        let hash = hasher.finish() as u32;
+        let base64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(hash.to_le_bytes());
+        Hub::new_with_name(&format!("Hub_{}", base64), url)
+    }
 
-        let url = Url::parse(url_str).expect("this url should be valid");
-
+    pub fn from_meta(meta: HubMetadata) -> Self {
         Self {
-            meta: HubMetadata {
-                name: String::from("unknown"),
-                url,
-                uuid: uuid::Uuid::new_v4(),
-            },
+            meta,
             state: HubState {
                 fullness: 0,
                 stereotypes: HashSet::new(),
                 readiness: HubReadiness::Unhealthy,
                 consecutive_healthcheck_failures: 0
-            },
+            }
         }
-    }
-}
-
-impl Hub {
-    pub fn new(url: Url) -> Self {
-        Hub::new_with_name("unknown".into(), url)
     }
 
     // Create a new Hub instance with a predefined name.

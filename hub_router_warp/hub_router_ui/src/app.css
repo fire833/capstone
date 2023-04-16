@@ -1,0 +1,136 @@
+body,
+html {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Source Code Pro', monospace;
+}
+
+/*
+  Josh's Custom CSS Reset
+  https://www.joshwcomeau.com/css/custom-css-reset/
+*/
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
+#root,
+#__next {
+  isolation: isolate;
+}
+
+/* Custom CSS Styling */
+
+
+/* Slightly modified from https://coolors.co/palette/0d1321-1d2d44-3e5c76-748cab-f0ebd8 */
+:root {
+  --background: #0D1321;
+  --background-secondary: #1D2D44; 
+  --background-secondary-lighter: #213652; 
+  --background-secondary-lightest: #263f5f; 
+  --foreground: #d8e8f0;
+  --foreground-lightened: #F0EBD822;
+  --foreground-secondary: #748CAB;
+  --foreground-secondary-light: #84a0c4;
+  --foreground-secondary-trans: #748CAB44;
+  --middle: #3E5C76;
+  --error: hsl(10, 80%, 60%);
+}
+
+
+#app {
+  min-height: 100%; 
+  width: 100%;
+  background-color: var(--background);
+}
+
+button {
+  background-color: #F0EBD809;
+  border: 1px solid var(--foreground);
+  color: var(--foreground);
+  border-radius: 3px;
+  font-size: 1em;
+  padding-right: 1em;
+  padding-left: 1em;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all;
+  transition-duration: 150ms;
+  line-height: 100%;
+  border-radius: 6px;
+  letter-spacing: 0.04em;
+}
+
+button.primary {
+  background-color: var(--foreground);
+  color: var(--background-secondary);
+  letter-spacing: -0.00em;
+}
+
+
+button.secondary:hover {
+  border: 1px solid var(--foreground);
+  background-color: #F0EBD816;
+  box-shadow: 0px 0px 8px var(--foreground-lightened);
+}
+
+button.primary:hover {
+  border: 1px solid var(--foreground);
+  /* background-color: #F0EBD811; */
+  /* color: var(--foreground); */
+  box-shadow: 0px 0px 12px var(--foreground-lightened);
+}
+
+p.secondary {
+  color: var(--foreground-secondary)
+}
+
+p.primary {
+  color: var(--foreground)
+}

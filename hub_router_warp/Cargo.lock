@@ -465,12 +465,14 @@ checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
 name = "hub_router_warp"
 version = "0.1.0"
 dependencies = [
+ "base64 0.21.0",
  "clap",
  "config",
  "dashmap",
  "hyper",
  "lazy_static",
  "log",
+ "mime_guess",
  "rand",
  "regex",
  "rust-embed",

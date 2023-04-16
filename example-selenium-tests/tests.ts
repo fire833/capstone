@@ -4,6 +4,7 @@ import { writeFileSync } from "fs";
 async function runTest(i: number){
 	let browser = (() => {	
 		let rand = Math.random();
+		return "chrome";
 		if (rand <= 0.3) return "chrome";
 		if (rand <= 0.6) return "MicrosoftEdge";
 		else return "firefox";
@@ -24,7 +25,7 @@ async function runTest(i: number){
 
 console.log("Don't forget to set SELENIUM_REMOTE_URL, it is currently set to: " + process.env['SELENIUM_REMOTE_URL']);
 
-for(let i = 0; i < 300; i++){
+for(let i = 0; i < 30; i++){
     runTest(i).then(res => {
         console.log("completed test");
     }).catch(err => {

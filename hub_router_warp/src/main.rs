@@ -27,6 +27,7 @@ mod routing;
 mod schema;
 mod state;
 mod utils;
+mod ui;
 
 #[derive(clap::Parser, Debug)]
 
@@ -72,7 +73,7 @@ async fn main() {
             _config = conf;
         }
         Err(e) => {
-            println!("{}", e);
+            eprintln!("Error loading configuration: {}", e);
             return;
         }
     }

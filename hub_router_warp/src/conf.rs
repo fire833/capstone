@@ -19,7 +19,6 @@ pub fn load_in_config(source: &String) -> Result<Config, ConfigError> {
         eprintln!("Warning: given configuration file {} does not exist - falling back to default configuration", source);
     }
 
-
     builder = builder.set_default(REAPER_THREAD_INTERVAL_SECS, 60)?;
     builder = builder.set_default(REAPER_MAX_SESSION_LIFETIME_MINS, 30)?;
     builder = builder.set_default(API_BIND_IP, "0.0.0.0")?;
