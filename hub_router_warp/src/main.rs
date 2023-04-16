@@ -1,7 +1,6 @@
 use crate::api::hub_api_thread;
 use crate::conf::load_in_config;
 use crate::hub::{hub_healthcheck_thread, Hub};
-use crate::state::HubRouterState;
 use ::config::Config;
 use clap::Parser;
 use dashmap::DashMap;
@@ -65,8 +64,6 @@ pub type HubMap = DashMap<Uuid, Hub>;
 async fn main() {
     let args = Args::parse();
     let mut _config: Config;
-
-    let config = HubRouterState::new_from_disk(&args.config_location);
 
     match load_in_config(&args.config_location) {
         Ok(conf) => {

@@ -1,8 +1,7 @@
-use std::{collections::{HashSet, hash_map::DefaultHasher}, net::IpAddr, sync::Arc, time::Duration, hash::{Hash, Hasher}};
+use std::{collections::{HashSet, hash_map::DefaultHasher}, sync::Arc, time::Duration, hash::{Hash, Hasher}};
 
 use base64::Engine;
-use dashmap::DashMap;
-use hyper::{Body, Client, Method, Request, Uri};
+use hyper::{Body, Client, Method, Request};
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
 

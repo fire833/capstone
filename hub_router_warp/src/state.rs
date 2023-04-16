@@ -1,8 +1,7 @@
-use crate::{hub::Hub, HubMap};
+use crate::{HubMap};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::{fs::read_to_string, io, sync::RwLock};
-use url::Url;
 
 /// HubRouterState is an encapsulation of all configurable state within a
 /// Hub Router instance. the notable exception to this is the session state

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{hub::Hub, routing::Endpoint};
+use crate::{routing::Endpoint};
 
 #[derive(Deserialize, Debug, Clone)]
 #[allow(non_snake_case, unused)]

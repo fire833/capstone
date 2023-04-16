@@ -1,6 +1,6 @@
 use crate::HubMap;
 use crate::conf::{API_BIND_IP, API_BIND_PORT};
-use crate::hub::{Hub, HubMetadata};
+use crate::hub::{Hub};
 use crate::routing::{RoutingDecision};
 use crate::schema::Session;
 use crate::ui::WebUIAssets;
@@ -11,16 +11,15 @@ use uuid::Uuid;
 use warp::path::Tail;
 use warp::reply::Response;
 use hyper::body::Bytes;
-use hyper::{Body, Client, Request, StatusCode, Uri};
+use hyper::{Client, Request, StatusCode, Uri};
 use serde::{Deserialize, Serialize};
-use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
-use warp::{reply, Filter, Rejection};
+use warp::{reply, Filter};
 
 /// Primary entrypoint for the API. Will run and provide information and capabilities to
 /// update information on the running Hub programatically.
@@ -127,7 +126,7 @@ async fn create_hub(
     let url = match Url::from_str(&meta.url){
         Ok(url) => url,
         Err(err) => {
-            return Ok(warp::reply::with_status(format!("Invalid hub URL: {}", &meta.url), StatusCode::BAD_REQUEST));
+            return Ok(warp::reply::with_status(format!("Invalid hub URL: {} | {}", &meta.url, err), StatusCode::BAD_REQUEST));
         },
     };
 
@@ -153,10 +152,6 @@ async fn delete_hub(
 ) -> Result<impl warp::Reply, warp::Rejection> {
     hubs.remove(&uuid);
     Ok(warp::reply::reply())
-}
-
-async fn handle_hub_creation_error(error: Rejection) -> Result<impl warp::Reply, warp::Rejection> {
-    return Ok(warp::reply::html(format!("Got hub creation error: {:#?}", error)));
 }
 
 async fn get_sessions(

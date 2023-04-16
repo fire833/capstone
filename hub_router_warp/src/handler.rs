@@ -1,19 +1,15 @@
 use crate::{
     error::HubRouterError,
-    hub::Hub,
     routing::{
-        apply_routing_decision, make_routing_decision, Endpoint, RoutingDecision,
+        apply_routing_decision, make_routing_decision,
         RoutingPrecedentMap,
     },
     schema::{NewSessionRequestBody, NewSessionRequestCapability, NewSessionResponse}, HubMap,
 };
-use dashmap::DashMap;
 use hyper::{Body, Client, Method, Request, Response};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::sync::Arc;
-use tokio::time::Instant;
-use url::Url;
 
 fn extract_session_id(req: &Request<Body>) -> Option<String> {
     lazy_static! {
@@ -187,7 +183,7 @@ async fn handle_new_session_request(
     let maybe_new_session_response: Result<NewSessionResponse, serde_json::Error> = serde_json::from_slice(&bytes);
     let new_session_response = match maybe_new_session_response {
         Ok(res) => res,
-        Err(e) => {
+        Err(_) => {
             return Err(HubRouterError::SessionCreationError(format!("Could not create session (this is likely because the hub is overloaded, increasing the hub's resource limits may be helpful): {}", String::from_utf8_lossy(&bytes))))
         }
     };

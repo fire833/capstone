@@ -1,6 +1,5 @@
 use dashmap::DashMap;
 use serde::{de::Visitor, ser::SerializeSeq, Deserializer, Serializer};
-use url::Url;
 
 use crate::{hub::Hub, HubMap};
 
@@ -85,7 +84,7 @@ impl<'de> Visitor<'de> for DashMapVisitor {
     where
         A: serde::de::SeqAccess<'de>,
     {
-        let mut map = DashMap::new();
+        let map = DashMap::new();
 
         while let Some(hub) = seq.next_element::<Hub>()? {
             map.insert(hub.meta.uuid.clone(), hub);
@@ -101,9 +100,9 @@ where
 {
     let mut seq = serializer.serialize_seq(Some(map.len()))?;
 
-    map.iter().for_each(|h| {
-        seq.serialize_element(h.value());
-    });
+    for kv in map {
+        seq.serialize_element(kv.value())?;
+    }
 
     seq.end()
 }

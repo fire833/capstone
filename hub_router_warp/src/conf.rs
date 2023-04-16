@@ -9,7 +9,7 @@ pub const API_BIND_IP: &str = "api_bind_ip";
 pub const API_BIND_PORT: &str = "api_bind_port";
 pub const PROXY_BIND_IP: &str = "proxy_bind_ip";
 pub const PROXY_BIND_PORT: &str = "proxy_bind_port";
-pub const PROXY_ENDPOINTS: &str = "proxy_endpoints";
+pub const _PROXY_ENDPOINTS: &str = "proxy_endpoints";
 
 pub fn load_in_config(source: &String) -> Result<Config, ConfigError> {
     let mut builder = Config::builder();
