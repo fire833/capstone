@@ -1,0 +1,11 @@
+{
+    "$schema": "https://fire833.github.io/capstone/hub_router_config_schema.json",
+    "reaper_thread_interval": 60,
+    "api_bind_ip": "0.0.0.0",
+    "api_bind_port": 8080,
+    "healthcheck_thread_interval": 1,
+    "hubs_file_path": "./hubs.ser",
+    "proxy_bind_ip": "0.0.0.0",
+    "proxy_bind_port": 6543,
+    "reaper_max_session_mins": 30
+}

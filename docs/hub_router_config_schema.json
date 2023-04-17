@@ -1,0 +1,50 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://fire833.github.io/capstone/hub_router_config_schema.json",
+    "title": "Hub Router Config",
+    "description": "Configuration for a Hub Router",
+    "type": "object",
+    "properties": {
+      "reaper_thread_interval": {
+        "description": "How often (in seconds) the hub router should check for session which did not end cleanly, and free memory associated with them",
+        "type": "integer",
+        "default": 60
+      },
+      "reaper_max_session_mins": {
+        "description": "How long (in minutes) a session is allowed to live in the hub router before it is assumed to be dead and is reaped",
+        "type": "integer",
+        "default": 30
+      },
+      "api_bind_ip": {
+        "description": "The IP address for the API server to bind to",
+        "type": "string",
+        "default": "0.0.0.0"
+      },
+      "api_bind_port": {
+        "description": "The port which the API server should be served from",
+        "type": "number",
+        "default": 8080
+      },
+      "proxy_bind_ip": {
+        "description": "The IP address for the proxy server to bind to",
+        "type": "string",
+        "default": "0.0.0.0"
+      },
+      "proxy_bind_port": {
+        "description": "The port which the proxy server should bind to",
+        "type": "number",
+        "default": 6543
+      },
+      "healthcheck_thread_interval": {  
+        "description": "The number of seconds between pings to /status on every registed hub, to ensure that they are functioning",
+        "type": "number",
+        "default": 1
+      },
+      "hubs_file_path": {
+        "description": "The file where hubs are serialized to and deserialized from",
+        "type": "string",
+        "default": "./hubs.ser"
+      }
+    },
+    "required": []
+  }
