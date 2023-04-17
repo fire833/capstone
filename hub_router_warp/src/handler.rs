@@ -1,10 +1,8 @@
 use crate::{
     error::HubRouterError,
-    routing::{
-        apply_routing_decision, make_routing_decision,
-        RoutingPrecedentMap,
-    },
-    schema::{NewSessionRequestBody, NewSessionRequestCapability, NewSessionResponse}, state::HubRouterState,
+    routing::{apply_routing_decision, make_routing_decision, RoutingPrecedentMap},
+    schema::{NewSessionRequestBody, NewSessionRequestCapability, NewSessionResponse},
+    state::HubRouterState,
 };
 use hyper::{Body, Client, Method, Request, Response};
 use lazy_static::lazy_static;
@@ -162,12 +160,8 @@ async fn handle_new_session_request(
         extract_capabilities_from_new_session_request(req).await?;
     req = reconstructed_request;
 
-    let routing_decision = make_routing_decision(
-        None,
-        Some(requests),
-        routing_map.clone(),
-        state.clone(),
-    )?;
+    let routing_decision =
+        make_routing_decision(None, Some(requests), routing_map.clone(), state.clone())?;
 
     apply_routing_decision(&mut req, &routing_decision.hub_endpoint)?;
 
@@ -180,7 +174,8 @@ async fn handle_new_session_request(
         "Got new session response: {}",
         String::from_utf8_lossy(&bytes)
     );
-    let maybe_new_session_response: Result<NewSessionResponse, serde_json::Error> = serde_json::from_slice(&bytes);
+    let maybe_new_session_response: Result<NewSessionResponse, serde_json::Error> =
+        serde_json::from_slice(&bytes);
     let new_session_response = match maybe_new_session_response {
         Ok(res) => res,
         Err(_) => {
@@ -188,10 +183,7 @@ async fn handle_new_session_request(
         }
     };
     let session_id = new_session_response.value.sessionId;
-    routing_map.insert(
-        session_id.to_string(),
-        routing_decision,
-    );
+    routing_map.insert(session_id.to_string(), routing_decision);
     Ok(hyper::Response::from_parts(parts, hyper::Body::from(bytes)))
 }
 
@@ -201,8 +193,7 @@ async fn forward_request(
     state: Arc<HubRouterState>,
 ) -> Result<Response<Body>, HubRouterError> {
     let maybe_session_id = extract_session_id(&req);
-    let routing_decision =
-        make_routing_decision(maybe_session_id, None, _routing_map, state)?;
+    let routing_decision = make_routing_decision(maybe_session_id, None, _routing_map, state)?;
     apply_routing_decision(&mut req, &routing_decision.hub_endpoint)?;
 
     let client = Client::new();

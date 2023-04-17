@@ -1,7 +1,12 @@
 use crate::HubMap;
 use log::warn;
 use serde::{Deserialize, Serialize};
-use std::{fs::{read_to_string, File}, net::Ipv4Addr, sync::RwLock, io::Write};
+use std::{
+    fs::{read_to_string, File},
+    io::Write,
+    net::Ipv4Addr,
+    sync::RwLock,
+};
 
 #[derive(Debug, Clone)]
 enum PersistPath {
@@ -107,16 +112,19 @@ impl HubRouterState {
     }
 
     pub fn persist(&self) -> Result<(), String> {
-        let serialized = match serde_json::to_string(
-            self
-        ) {
+        let serialized = match serde_json::to_string(self) {
             Ok(str) => str,
             Err(e) => return Err(format!("Error serializing state: {}", e.to_string())),
         };
 
         let mut config_file = match File::create::<String>(self.persist_file.clone().into()) {
             Ok(file) => file,
-            Err(e) => return Err(format!("Error opening config file for serialization: {}", e)),
+            Err(e) => {
+                return Err(format!(
+                    "Error opening config file for serialization: {}",
+                    e
+                ))
+            }
         };
 
         let bytes = serialized.as_bytes();

@@ -1,4 +1,9 @@
-use std::{collections::{HashSet, hash_map::DefaultHasher}, sync::Arc, time::Duration, hash::{Hash, Hasher}};
+use std::{
+    collections::{hash_map::DefaultHasher, HashSet},
+    hash::{Hash, Hasher},
+    sync::Arc,
+    time::Duration,
+};
 
 use base64::Engine;
 use hyper::{Body, Client, Method, Request};
@@ -11,7 +16,8 @@ use crate::{
         HubStatusJSONSchema, HubStatusNodeJSONSchema, HubStatusNodeSlotIDJSONSchema,
         HubStatusNodeSlotJSONSchema, HubStatusNodeSlotSessionJSONSchema, HubStatusOSInfoJSONSchema,
         HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema, NewSessionRequestCapability,
-    }, state::HubRouterState,
+    },
+    state::HubRouterState,
 };
 use log::{info, warn};
 use url::Url;
@@ -97,8 +103,8 @@ impl Hub {
                 fullness: 0,
                 stereotypes: HashSet::new(),
                 readiness: HubReadiness::Unhealthy,
-                consecutive_healthcheck_failures: 0
-            }
+                consecutive_healthcheck_failures: 0,
+            },
         }
     }
 
@@ -114,7 +120,7 @@ impl Hub {
                 fullness: 0,
                 stereotypes: HashSet::new(),
                 readiness: HubReadiness::Unhealthy,
-                consecutive_healthcheck_failures: 0
+                consecutive_healthcheck_failures: 0,
             },
         }
     }
@@ -148,13 +154,13 @@ impl Hub {
         if self.state.consecutive_healthcheck_failures >= 3 {
             self.state.readiness = HubReadiness::Unhealthy;
         }
-        return self.state.readiness
+        return self.state.readiness;
     }
 
     pub fn succeed_healthcheck(&mut self) -> HubReadiness {
         self.state.consecutive_healthcheck_failures = 0;
         self.state.readiness = HubReadiness::Ready;
-        return self.state.readiness
+        return self.state.readiness;
     }
 }
 
@@ -273,7 +279,11 @@ pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
         let mut request_futures: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> = {
             let mut join_set: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> =
                 JoinSet::new();
-            let endpoints: Vec<(Uuid, Endpoint)> = state.hubs.iter().map(|h| (h.meta.uuid, h.meta.url.clone())).collect();
+            let endpoints: Vec<(Uuid, Endpoint)> = state
+                .hubs
+                .iter()
+                .map(|h| (h.meta.uuid, h.meta.url.clone()))
+                .collect();
 
             for (hub_uuid, _url) in endpoints {
                 let client = Client::new();
@@ -310,46 +320,42 @@ pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
 
         while let Some(res) = request_futures.join_next().await {
             match res {
-                Ok((url, status_result)) => {
-                    match status_result {
-                        Ok(parsed_status) => {
-                            let is_ready = parsed_status.value.nodes.len() > 0;
-                            match state.hubs.get_mut(&url) {
-                                Some(mut hub) => {
-                                    hub.state.fullness = compute_hub_fullness(&parsed_status);
-                                    hub.state.readiness = if is_ready {
-                                        hub.succeed_healthcheck()
-                                    } else {
-                                        hub.fail_healthcheck()
-                                    };
-                                    parsed_status.value.nodes.iter().for_each(|node| {
-                                        node.slots.iter().for_each(|slot| {
-                                            if !hub.state.stereotypes.contains(&slot.stereotype) {
-                                                hub.state
-                                                    .stereotypes
-                                                    .insert(slot.stereotype.clone());
-                                            }
-                                        })
-                                    });
-                                }
-                                None => {
-                                    warn!("Somehow, a hub which we performed a healthcheck for is not in the map?");
-                                }
+                Ok((url, status_result)) => match status_result {
+                    Ok(parsed_status) => {
+                        let is_ready = parsed_status.value.nodes.len() > 0;
+                        match state.hubs.get_mut(&url) {
+                            Some(mut hub) => {
+                                hub.state.fullness = compute_hub_fullness(&parsed_status);
+                                hub.state.readiness = if is_ready {
+                                    hub.succeed_healthcheck()
+                                } else {
+                                    hub.fail_healthcheck()
+                                };
+                                parsed_status.value.nodes.iter().for_each(|node| {
+                                    node.slots.iter().for_each(|slot| {
+                                        if !hub.state.stereotypes.contains(&slot.stereotype) {
+                                            hub.state.stereotypes.insert(slot.stereotype.clone());
+                                        }
+                                    })
+                                });
                             }
-                        }
-                        Err(healthcheck_err) => {
-                            eprintln!("Got healthcheck err: {:#?}", healthcheck_err);
-                            match state.hubs.get_mut(&url) {
-                                Some(mut hub) => {
-                                    hub.fail_healthcheck();
-                                }
-                                None => {
-                                    warn!("Somehow, a hub which we performed a healthcheck for is not in the map?")
-                                }
+                            None => {
+                                warn!("Somehow, a hub which we performed a healthcheck for is not in the map?");
                             }
                         }
                     }
-                }
+                    Err(healthcheck_err) => {
+                        eprintln!("Got healthcheck err: {:#?}", healthcheck_err);
+                        match state.hubs.get_mut(&url) {
+                            Some(mut hub) => {
+                                hub.fail_healthcheck();
+                            }
+                            None => {
+                                warn!("Somehow, a hub which we performed a healthcheck for is not in the map?")
+                            }
+                        }
+                    }
+                },
                 Err(e) => {
                     eprintln!("Healthcheck task failed to complete: {}", e)
                 }

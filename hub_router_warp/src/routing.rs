@@ -1,15 +1,16 @@
 use crate::{
     error::{HubRouterError, RoutingError},
     hub::{Hub, HubReadiness},
-    schema::NewSessionRequestCapability, state::HubRouterState,
+    schema::NewSessionRequestCapability,
+    state::HubRouterState,
 };
 use dashmap::{mapref::multiple::RefMulti, DashMap};
 use hyper::{Body, Request, Uri};
 use rand::random;
-use uuid::Uuid;
 use std::{str::FromStr, sync::Arc};
 use tokio::time::Instant;
 use url::Url;
+use uuid::Uuid;
 
 pub type RoutingPrecedentMap = DashMap<String, RoutingDecision>;
 pub type Endpoint = Url;
@@ -47,7 +48,8 @@ pub fn make_routing_decision(
 
     println!("Making a routing decision for the first time!");
 
-    let mut healthy_hubs_iter = state.hubs
+    let mut healthy_hubs_iter = state
+        .hubs
         .iter()
         .filter(|h| h.state.get_readiness() == HubReadiness::Ready)
         .peekable();
@@ -61,26 +63,24 @@ pub fn make_routing_decision(
     let healthy_hubs: Vec<_> = healthy_hubs_iter.collect();
 
     // get a list of hubs which satisfy the request
-    let potential_hubs: Option<Vec<&RefMulti<Uuid, Hub>>> =
-        match &optional_requested_capabilities {
-            None => Some(healthy_hubs.iter().collect()),
-            Some(requested_capabilities) => {
-                let mut satisfying_hubs: Option<Vec<&RefMulti<Uuid, Hub>>> = None;
-                for capability in requested_capabilities {
-                    let can_satisfy: Vec<_> = healthy_hubs
-                        .iter()
-                        .filter(|h| h.can_satisfy_capability(capability))
-                        .collect();
-                    if can_satisfy.len() > 0 {
-                        satisfying_hubs = Some(can_satisfy);
-                        break;
-                    }
+    let potential_hubs: Option<Vec<&RefMulti<Uuid, Hub>>> = match &optional_requested_capabilities {
+        None => Some(healthy_hubs.iter().collect()),
+        Some(requested_capabilities) => {
+            let mut satisfying_hubs: Option<Vec<&RefMulti<Uuid, Hub>>> = None;
+            for capability in requested_capabilities {
+                let can_satisfy: Vec<_> = healthy_hubs
+                    .iter()
+                    .filter(|h| h.can_satisfy_capability(capability))
+                    .collect();
+                if can_satisfy.len() > 0 {
+                    satisfying_hubs = Some(can_satisfy);
+                    break;
                 }
-                satisfying_hubs
             }
-        };
+            satisfying_hubs
+        }
+    };
 
-        
     match potential_hubs {
         Some(hubs) => {
             println!("Found {} healthy hubs to route to", hubs.len());
@@ -107,32 +107,39 @@ pub fn make_routing_decision(
 
             if selected_hub_uuid.is_none() {
                 eprintln!("Weighted rolling never selected an endpoint - this shouldn't happen, falling back to uniform random");
-                return Err(RoutingError::NoDecision("Internal Error | Weighted random routing was unable to select a hub".into()));
+                return Err(RoutingError::NoDecision(
+                    "Internal Error | Weighted random routing was unable to select a hub".into(),
+                ));
             }
 
             let decision_uuid = match selected_hub_uuid {
                 Some(uuid) => uuid,
                 None => {
-                    return Err(RoutingError::NoDecision("Internal Error | Unable to select a hub for routing".into()));
+                    return Err(RoutingError::NoDecision(
+                        "Internal Error | Unable to select a hub for routing".into(),
+                    ));
                 }
             };
 
             let decision_ref = match state.hubs.get(&decision_uuid) {
                 Some(hub) => hub,
                 None => {
-                    return Err(RoutingError::NoDecision("A hub was selected for routing, but could not be retrieved".into()));
+                    return Err(RoutingError::NoDecision(
+                        "A hub was selected for routing, but could not be retrieved".into(),
+                    ));
                 }
             };
 
-            let decision = RoutingDecision::new(decision_ref.key().clone(), decision_ref.value().meta.url.clone(), Instant::now());
+            let decision = RoutingDecision::new(
+                decision_ref.key().clone(),
+                decision_ref.value().meta.url.clone(),
+                Instant::now(),
+            );
             println!("Made decision: {:#?}", decision);
 
             // Save it if we have a session id
             if let Some(session_id) = maybe_session_id {
-                routing_map.insert(
-                    session_id.to_string(),
-                    decision.clone(),
-                );
+                routing_map.insert(session_id.to_string(), decision.clone());
             }
             return Ok(decision);
         }
