@@ -1,5 +1,5 @@
 use crate::api::hub_api_thread;
-use crate::conf::{load_in_config, PROXY_BIND_IP, PROXY_BIND_PORT, HUBS_FILE_PATH};
+use crate::conf::{load_in_config, PROXY_BIND_IP, PROXY_BIND_PORT, HUBS_FILE_PATH, REAPER_THREAD_INTERVAL_SECS, REAPER_MAX_SESSION_LIFETIME_MINS};
 use crate::hub::{hub_healthcheck_thread, Hub, HubMetadata};
 use ::config::Config;
 use clap::Parser;
@@ -33,7 +33,7 @@ mod ui;
 
 struct Args {
     /// Location to read in configuration file from.
-    #[arg(short, long, default_value_t = String::from("./config.yaml"))]
+    #[arg(short, long, default_value_t = String::from("./config.json"))]
     config_location: String,
 
 }
@@ -106,8 +106,9 @@ async fn main() {
     // Spawn reaper thread for dead threads sitting around in the queue.
     tokio::task::spawn({
         let map_clone = sessions.clone();
-        let mut reap_interval = time::interval(Duration::from_secs(60));
-        let max_session_lifetime = Duration::from_secs(60 * 30);
+        let config_clone = config.clone();
+        let mut reap_interval = time::interval(Duration::from_secs(config_clone.get(REAPER_THREAD_INTERVAL_SECS).unwrap_or(60)));
+        let max_session_lifetime = Duration::from_secs(60 * config_clone.get(REAPER_MAX_SESSION_LIFETIME_MINS).unwrap_or(30));
         async move {
             loop {
                 reap_interval.tick().await;
