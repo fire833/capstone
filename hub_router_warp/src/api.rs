@@ -1,39 +1,37 @@
-use crate::state::{HubRouterState, HubRouterPrimitiveConfigs};
-use crate::hub::{Hub};
-use crate::routing::{RoutingDecision};
+use crate::hub::Hub;
+use crate::routing::RoutingDecision;
 use crate::schema::Session;
+use crate::state::{HubRouterPrimitiveConfigs, HubRouterState};
 use crate::ui::WebUIAssets;
 use dashmap::DashMap;
-use log::{info, warn};
-use url::Url;
-use uuid::Uuid;
-use warp::path::Tail;
-use warp::reply::Response;
 use hyper::body::Bytes;
 use hyper::{Client, Request, StatusCode, Uri};
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
+use url::Url;
+use uuid::Uuid;
+use warp::path::Tail;
+use warp::reply::Response;
 use warp::{reply, Filter};
 
 /// Primary entrypoint for the API. Will run and provide information and capabilities to
 /// update information on the running Hub programatically.
 pub async fn hub_api_thread(
     state: Arc<HubRouterState>,
-    sessions: Arc<DashMap<String, RoutingDecision>>
+    sessions: Arc<DashMap<String, RoutingDecision>>,
 ) {
     let bind_tuple = match state.configs.read() {
-        Ok(conf) => {
-            (conf.api_bind_ip, conf.api_bind_port)
-        },
+        Ok(conf) => (conf.api_bind_ip, conf.api_bind_port),
         Err(err) => {
             warn!("RWLock was poisoned generating api bind tuple: {}", err);
             let conf = HubRouterPrimitiveConfigs::default();
             (conf.api_bind_ip, conf.api_bind_port)
-        },
+        }
     };
     info!("starting api thread");
     let state_filter = warp::any().map(move || state.clone());
@@ -58,6 +56,12 @@ pub async fn hub_api_thread(
         .and(warp::path::end())
         .and(state_filter.clone())
         .and_then(delete_hub);
+
+    let set_config_values = warp::post()
+        .and(warp::path!("api" / String / u64))
+        .and(warp::path::end())
+        .and(state_filter.clone())
+        .and_then(set_config);
 
     let get_sessions = warp::get()
         .and(warp::path!("api" / "sessions"))
@@ -90,6 +94,7 @@ pub async fn hub_api_thread(
         .or(get_ui)
         .or(aggregate_graphql_responses)
         .or(aggregate_status_responses)
+        .or(set_config_values)
         .or(warp::any().map(|| {
             Ok(warp::reply::with_status(
                 reply::reply(),
@@ -102,9 +107,7 @@ pub async fn hub_api_thread(
                 .allow_methods(vec!["GET", "POST", "OPTIONS"]),
         );
 
-    warp::serve(routes)
-        .run(bind_tuple)
-        .await;
+    warp::serve(routes).run(bind_tuple).await;
 }
 
 async fn get_hubs(state: Arc<HubRouterState>) -> Result<impl warp::Reply, warp::Rejection> {
@@ -121,19 +124,23 @@ async fn get_hubs(state: Arc<HubRouterState>) -> Result<impl warp::Reply, warp::
 #[derive(Serialize, Deserialize)]
 struct HubNameAndURL {
     name: String,
-    url: String
+    url: String,
 }
+
 async fn create_hub(
     state: Arc<HubRouterState>,
-    meta: HubNameAndURL
+    meta: HubNameAndURL,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     println!("creating new hub...");
 
-    let url = match Url::from_str(&meta.url){
+    let url = match Url::from_str(&meta.url) {
         Ok(url) => url,
         Err(err) => {
-            return Ok(warp::reply::with_status(format!("Invalid hub URL: {} | {}", &meta.url, err), StatusCode::BAD_REQUEST));
-        },
+            return Ok(warp::reply::with_status(
+                format!("Invalid hub URL: {} | {}", &meta.url, err),
+                StatusCode::BAD_REQUEST,
+            ));
+        }
     };
 
     if state.hubs.iter().any(|e| &e.meta.url == &url) {
@@ -146,12 +153,14 @@ async fn create_hub(
         state.hubs.insert(new_hub.meta.uuid, new_hub);
         if let Err(e) = state.persist() {
             return Ok(warp::reply::with_status(
-                format!("Unable to persist new hub: {}", e), StatusCode::INTERNAL_SERVER_ERROR));
+                format!("Unable to persist new hub: {}", e),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ));
         }
     }
 
     return Ok(warp::reply::with_status(
-        format!("registered hubs successfully"),
+        format!("registered hub successfully"),
         StatusCode::CREATED,
     ));
 }
@@ -161,7 +170,17 @@ async fn delete_hub(
     state: Arc<HubRouterState>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     state.hubs.remove(&uuid);
-    Ok(warp::reply::reply())
+    if let Err(e) = state.persist() {
+        return Ok(warp::reply::with_status(
+            format!("Unable to persist new hub: {}", e),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    return Ok(warp::reply::with_status(
+        format!("deleted hub successfully"),
+        StatusCode::CREATED,
+    ));
 }
 
 async fn get_sessions(
@@ -193,6 +212,66 @@ async fn serve_ui(tail: Tail) -> Result<impl warp::Reply, warp::Rejection> {
                 .to_string(),
         )),
         None => Err(warp::reject::not_found()),
+    }
+}
+
+async fn set_config(
+    key: String,
+    value: u64,
+    state: Arc<HubRouterState>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    if matches!(
+        key.as_str(),
+        "healthcheck_interval" | "reaper_interval" | "reaper_max_duration"
+    ) {
+        let res = if let Ok(mut conf) = state.configs.write() {
+            match key.as_str() {
+                "healthcheck_interval" => {
+                    conf.healthcheck_thread_interval = value;
+                    Ok(warp::reply::with_status(
+                        "successfully set healthcheck thread interval".to_string(),
+                        StatusCode::OK,
+                    ))
+                }
+                "reaper_interval" => {
+                    conf.reaper_thread_interval = value;
+                    Ok(warp::reply::with_status(
+                        "successfully set reaper thread interval".into(),
+                        StatusCode::OK,
+                    ))
+                }
+                "reaper_max_duration" => {
+                    conf.reaper_thread_duration_max = value;
+                    Ok(warp::reply::with_status(
+                        "successfully set reaper max session duration".into(),
+                        StatusCode::OK,
+                    ))
+                }
+                _ => Ok(warp::reply::with_status(
+                    "invalid config parameter to set".into(),
+                    StatusCode::NOT_ACCEPTABLE,
+                )),
+            }
+        } else {
+            Ok(warp::reply::with_status(
+                "unable to acquire write lock for configs".into(),
+                StatusCode::NOT_ACCEPTABLE,
+            ))
+        };
+
+        if let Err(e) = state.persist() {
+            return Ok(warp::reply::with_status(
+                format!("Unable to persist new hub: {}", e),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ));
+        } else {
+            res
+        }
+    } else {
+        return Ok(warp::reply::with_status(
+            "invalid config parameter to set".into(),
+            StatusCode::NOT_ACCEPTABLE,
+        ));
     }
 }
 
@@ -245,9 +324,7 @@ async fn aggregate_request(
     let mut join_set: JoinSet<Result<AggregatedResponse, AggregatedError>> = JoinSet::new();
 
     for request in reqs {
-        join_set.spawn(async move {
-            make_single_aggregate_request(request).await
-        });
+        join_set.spawn(async move { make_single_aggregate_request(request).await });
     }
 
     let mut serialized_json_responses: Vec<Result<AggregatedResponse, AggregatedError>> = vec![];
@@ -269,18 +346,24 @@ async fn aggregate_request(
 #[derive(Debug, Serialize, Deserialize)]
 struct APIHubsStatusResponse {
     hub_status_response: Result<AggregatedResponse, AggregatedError>,
-    router_hub_state: Hub
+    router_hub_state: Hub,
 }
 
-async fn aggregate_status_responses(state: Arc<HubRouterState>) -> Result<impl warp::Reply, warp::Rejection> {
-    let unvalidated_requests: Vec<_> = state.hubs
+async fn aggregate_status_responses(
+    state: Arc<HubRouterState>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let unvalidated_requests: Vec<_> = state
+        .hubs
         .iter()
         .map(|h| {
-            let uri = Uri::from_str({
-                let mut status_endpoint = h.meta.url.clone();
-                status_endpoint.set_path("/status");
-                status_endpoint
-            }.as_str())?;
+            let uri = Uri::from_str(
+                {
+                    let mut status_endpoint = h.meta.url.clone();
+                    status_endpoint.set_path("/status");
+                    status_endpoint
+                }
+                .as_str(),
+            )?;
             return Request::builder()
                 .method("GET")
                 .uri(uri)
@@ -301,7 +384,7 @@ async fn aggregate_status_responses(state: Arc<HubRouterState>) -> Result<impl w
         }
     }
 
-    let mut req_join_set: JoinSet<APIHubsStatusResponse>  = JoinSet::new();
+    let mut req_join_set: JoinSet<APIHubsStatusResponse> = JoinSet::new();
 
     for (req, hub) in validated_requests.into_iter().zip(state.hubs.iter()) {
         let cloned_hub = hub.clone();
@@ -349,14 +432,18 @@ async fn aggregate_graphql_responses(
     graphql_request: Bytes,
     state: Arc<HubRouterState>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let unvalidated_requests: Vec<_> = state.hubs
+    let unvalidated_requests: Vec<_> = state
+        .hubs
         .iter()
         .map(|h| {
-            let uri = Uri::from_str({
-                let mut status_endpoint = h.meta.url.clone();
-                status_endpoint.set_path("/graphql");
-                status_endpoint
-            }.as_str())?;
+            let uri = Uri::from_str(
+                {
+                    let mut status_endpoint = h.meta.url.clone();
+                    status_endpoint.set_path("/graphql");
+                    status_endpoint
+                }
+                .as_str(),
+            )?;
             return Request::builder()
                 .method("POST")
                 .header("Content-Type", "application/json")
