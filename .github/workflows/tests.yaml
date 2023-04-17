@@ -22,6 +22,9 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v3
 
+    - name: Build Frontend
+      run: cd hub_router_warp/hub_router_ui && npm i && npm run build
+      
     - name: Run tests
       run: cd hub_router_warp/ && cargo test
 
