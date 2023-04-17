@@ -87,6 +87,17 @@ impl HubState {
     }
 }
 
+impl Default for HubState {
+    fn default() -> Self {
+        HubState {
+            fullness: 0,
+            stereotypes: HashSet::new(),
+            readiness: HubReadiness::Unhealthy,
+            consecutive_healthcheck_failures: 0,
+        }
+    }
+}
+
 impl Hub {
     pub fn new(url: Url) -> Self {
         let mut hasher = DefaultHasher::new();
@@ -99,12 +110,7 @@ impl Hub {
     pub fn from_meta(meta: HubMetadata) -> Self {
         Self {
             meta,
-            state: HubState {
-                fullness: 0,
-                stereotypes: HashSet::new(),
-                readiness: HubReadiness::Unhealthy,
-                consecutive_healthcheck_failures: 0,
-            },
+            state: HubState::default(),
         }
     }
 
@@ -138,6 +144,13 @@ impl Hub {
 
             satisfies_browser && satisfies_platform_name
         })
+    }
+
+    pub fn clone_from_meta(&self) -> Self {
+        Self {
+            meta: self.meta.clone(),
+            state: HubState::default(),
+        }
     }
 
     /// Check to make sure a Hub is both ready and available, and satisfies the

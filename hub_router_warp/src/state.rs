@@ -77,14 +77,19 @@ impl Default for HubRouterPrimitiveConfigs {
 impl HubRouterState {
     #[allow(unused)]
     pub fn new_from_disk(path: &str) -> Self {
-        if let Ok(data) = read_to_string(path) {
-            if let Ok(s) = serde_json::from_str(&data) {
-                return s;
-            }
-        }
 
+        let state = {
+            if let Ok(data) = read_to_string(path) {
+                if let Ok(s) = serde_json::from_str(&data) {
+                    s
+                }
+            }
+            Self::default()
+        };
+
+        state.hubs.alter_all(|_, v| v.clone_from_meta());
         warn!("Unable to fetch config from disk - falling back to default");
-        Self::default()
+        state
     }
 
     #[allow(unused)]
