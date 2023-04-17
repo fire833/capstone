@@ -70,6 +70,8 @@ resource "helm_release" "grid-chart-release" {
     name = "nodes.edge.minReplicas"
     value = tostring(var.min_edge_nodes)
   }
+
+  values = [var.helm_values]
 }
 
 

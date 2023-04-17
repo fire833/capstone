@@ -78,3 +78,7 @@ variable "selenium_node_ram_limit" {
   description = "Specify how many megabytes of RAM a selenium node may use."
   default = 750
 }
+
+variable "helm_values" {
+  default = ""
+}

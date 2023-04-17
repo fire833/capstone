@@ -56,6 +56,8 @@ resource "helm_release" "grid_cluster" {
   depends_on = [
     helm_release.load_balancer_controller
   ]
+
+  values = [var.helm_values]
 }
 
 resource "helm_release" "load_balancer_controller" {

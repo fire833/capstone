@@ -71,3 +71,7 @@ locals {
   cluster_autoscaling_max_cpu_cores = var.base_autoscaling_cpu + ceil(local.max_selenium_nodes * (var.selenium_node_cpu_limit / 1000))
   cluster_autoscaling_max_gb_ram    = var.base_autoscaling_ram + ceil(local.max_selenium_nodes * (var.selenium_node_ram_limit / 1000))
 }
+
+variable "helm_values" {
+  default = ""
+}

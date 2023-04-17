@@ -36,4 +36,6 @@ resource "helm_release" "grid-chart-release" {
     name = "nodes.edge.maxReplicas"
     value = tostring(var.max_edge_nodes)
   }
+
+  values = [var.helm_values]
 }

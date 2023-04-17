@@ -62,6 +62,10 @@ variable "instance_type" {
   default = "c6a.xlarge"
 }
 
+variable "helm_values" {
+  default = ""
+}
+
 # variable "access_key" {
 #   description = "Provide access key for authentication"
 # }
