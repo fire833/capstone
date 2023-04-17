@@ -1,3 +1,11 @@
+FROM docker.io/node:latest AS frontend_builder
+
+ADD hub_router_ui /usr/src/hub_router_warp/hub_router_ui
+WORKDIR /usr/src/hub_router_warp/hub_router_ui
+
+RUN ls -la
+RUN npm i
+RUN npm run build
 
 FROM docker.io/rust:latest AS builder
 
@@ -5,6 +13,8 @@ ADD src /usr/src/hub_router_warp/src
 ADD Cargo.lock /usr/src/hub_router_warp
 ADD Cargo.toml /usr/src/hub_router_warp
 WORKDIR /usr/src/hub_router_warp
+
+COPY --from=frontend_builder /usr/src/hub_router_warp/hub_router_ui/dist /usr/src/hub_router_warp/hub_router_ui/dist
 
 RUN cargo build --release
 
