@@ -1,25 +1,21 @@
 use crate::api::hub_api_thread;
-use crate::conf::{load_in_config, PROXY_BIND_IP, PROXY_BIND_PORT, HUBS_FILE_PATH, REAPER_THREAD_INTERVAL_SECS, REAPER_MAX_SESSION_LIFETIME_MINS};
-use crate::hub::{hub_healthcheck_thread, Hub, HubMetadata};
-use ::config::Config;
+use crate::hub::{hub_healthcheck_thread, Hub};
+use crate::state::{HubRouterState, HubRouterPrimitiveConfigs};
 use clap::Parser;
 use dashmap::DashMap;
 use handler::handle;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
+use log::warn;
 use routing::{RoutingPrecedentMap};
 use uuid::Uuid;
 use std::convert::Infallible;
-use std::fs::read_to_string;
-#[allow(unused)]
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::str::FromStr;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::{self, Instant};
 
 mod api;
-mod conf;
 mod error;
 mod handler;
 mod hub;
@@ -44,71 +40,40 @@ pub type HubMap = DashMap<Uuid, Hub>;
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let config: Config = match load_in_config(&args.config_location) {
-        Ok(conf) => {
-            conf
-        }
-        Err(e) => {
-            eprintln!("Error loading configuration: {}", e);
-            return;
-        }
-    };
-    let config = Arc::new(config);
 
-    let hub_file_path = match config.get(HUBS_FILE_PATH) {
-        Ok(path) => path,
-        Err(e) => {
-            eprintln!("Could not fetch hub file path from config: {}, defaulting to ./hubs.ser", e);
-            "./hubs.ser".to_string()
-        }
-    };
-
-    // Load serialized hubs from the hubs file, and create a DashMap
-    let hubs: HubMap = match read_to_string(hub_file_path) {
-        Ok(serialized_hubs) => {
-            let deserialized_hubs: Result<Vec<HubMetadata>, _> = serde_json::from_str(&serialized_hubs);
-            match deserialized_hubs {
-                Ok(hubs) => {
-                    let map: HubMap = DashMap::new();
-                    hubs.into_iter().for_each(|h| {map.insert(h.uuid, Hub::from_meta(h));});
-                    map
-                },
-                Err(e) => {
-                    eprintln!("Error deserializing hubs: {}, no hubs will be initially registered", e);
-                    DashMap::new()
-                }
-            }
-        },
-        Err(_) => {
-            eprintln!("Could not open hubs file - no hubs will be initially registered");
-            DashMap::new()
-        }
-    };
-    let hubs = Arc::new(hubs);
+    let state: Arc<HubRouterState> = Arc::new(HubRouterState::new_from_disk(&args.config_location));
 
     // Global session handler map.
     let sessions: Arc<RoutingPrecedentMap> = Arc::new(DashMap::new());
 
     // Spawn the healthcheck thread.
     tokio::task::spawn({
-        let hub_clone = hubs.clone();
-        async move { hub_healthcheck_thread(hub_clone).await }
+        let state_clone = state.clone();
+        async move { hub_healthcheck_thread(state_clone).await }
     });
 
     // Spawn the API thread.
     tokio::task::spawn({
-        let hub_clone = hubs.clone();
+        let state_clone = state.clone();
         let sessions_clone = sessions.clone();
-        let config_clone = config.clone();
-        async move { hub_api_thread(hub_clone, sessions_clone, config_clone).await }
+        async move { hub_api_thread(state_clone, sessions_clone).await }
     });
 
     // Spawn reaper thread for dead threads sitting around in the queue.
     tokio::task::spawn({
         let map_clone = sessions.clone();
-        let config_clone = config.clone();
-        let mut reap_interval = time::interval(Duration::from_secs(config_clone.get(REAPER_THREAD_INTERVAL_SECS).unwrap_or(60)));
-        let max_session_lifetime = Duration::from_secs(60 * config_clone.get(REAPER_MAX_SESSION_LIFETIME_MINS).unwrap_or(30));
+        let state_clone = state.clone();
+        let (mut reap_interval, max_session_lifetime) = match state_clone.configs.read() {
+            Ok(conf) => {
+                (time::interval(Duration::from_secs(conf.reaper_thread_interval.into())), Duration::from_secs(60 * conf.reaper_thread_duration_max))
+            },
+            Err(e) => {
+                warn!("Config Rwlock was poisoned during reaper spawn: {}", e);
+                let conf = HubRouterPrimitiveConfigs::default();
+                (time::interval(Duration::from_secs(conf.reaper_thread_interval.into())), Duration::from_secs(60 * conf.reaper_thread_duration_max))
+            }
+        };
+        // let max_session_lifetime = Duration::from_secs(60 * state_clone);
         async move {
             loop {
                 reap_interval.tick().await;
@@ -136,38 +101,26 @@ async fn main() {
         }
     });
 
-    let bind_ip_str: String = match config.get(PROXY_BIND_IP) {
-        Ok(str) => str,
+    let bind_addr = match state.configs.read() {
+        Ok(conf) => {
+            SocketAddr::new(IpAddr::V4(conf.bind_ip), conf.bind_port)
+        },
         Err(e) => {
-            eprintln!("Could not load proxy bind IP from config: {}, falling back to 0.0.0.0", e);
-            "0.0.0.0".into()
-        }
-    };
-    let bind_ip = match Ipv4Addr::from_str(&bind_ip_str) {
-        Ok(ip) => ip,
-        Err(e) => {
-            eprintln!("Invalid proxy IP: {}", e);
-            return;
-        }
-    };
-    let bind_port = match config.get(PROXY_BIND_PORT){
-        Ok(port) => port,
-        Err(e) => {
-            eprintln!("Could not load proxy port from config, falling back to 6543: {}", e);
-            6543
+            warn!("RWLock poisoned generating proxy bind addr: {}", e);
+            let conf = HubRouterPrimitiveConfigs::default();
+            SocketAddr::new(IpAddr::V4(conf.bind_ip), conf.bind_port)
         }
     };
 
+    println!("Binding on {}", bind_addr);
 
-    println!("Binding on {}:{}", bind_ip, bind_port);
-
-    let server = Server::bind(&SocketAddr::from((bind_ip, bind_port))).serve(
+    let server = Server::bind(&bind_addr).serve(
         make_service_fn(move |_con| {
             let map = sessions.clone();
-            let hub_map = hubs.clone();
+            let state_clone = state.clone();
             async {
                 Ok::<_, Infallible>(service_fn(move |_conn| {
-                    handle(_conn, map.clone(), hub_map.clone())
+                    handle(_conn, map.clone(), state_clone.clone())
                 }))
             }
         }),

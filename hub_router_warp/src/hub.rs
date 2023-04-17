@@ -11,7 +11,7 @@ use crate::{
         HubStatusJSONSchema, HubStatusNodeJSONSchema, HubStatusNodeSlotIDJSONSchema,
         HubStatusNodeSlotJSONSchema, HubStatusNodeSlotSessionJSONSchema, HubStatusOSInfoJSONSchema,
         HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema, NewSessionRequestCapability,
-    }, HubMap,
+    }, state::HubRouterState,
 };
 use log::{info, warn};
 use url::Url;
@@ -266,14 +266,14 @@ enum HealthcheckErr {
     HyperError(hyper::Error),
 }
 
-pub async fn hub_healthcheck_thread(hubs: Arc<HubMap>) {
+pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
     info!("starting healthcheck thread");
     let mut healthcheck_interval = tokio::time::interval(Duration::from_secs(1));
     loop {
         let mut request_futures: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> = {
             let mut join_set: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> =
                 JoinSet::new();
-            let endpoints: Vec<(Uuid, Endpoint)> = hubs.iter().map(|h| (h.meta.uuid, h.meta.url.clone())).collect();
+            let endpoints: Vec<(Uuid, Endpoint)> = state.hubs.iter().map(|h| (h.meta.uuid, h.meta.url.clone())).collect();
 
             for (hub_uuid, _url) in endpoints {
                 let client = Client::new();
@@ -314,7 +314,7 @@ pub async fn hub_healthcheck_thread(hubs: Arc<HubMap>) {
                     match status_result {
                         Ok(parsed_status) => {
                             let is_ready = parsed_status.value.nodes.len() > 0;
-                            match hubs.get_mut(&url) {
+                            match state.hubs.get_mut(&url) {
                                 Some(mut hub) => {
                                     hub.state.fullness = compute_hub_fullness(&parsed_status);
                                     hub.state.readiness = if is_ready {
@@ -339,7 +339,7 @@ pub async fn hub_healthcheck_thread(hubs: Arc<HubMap>) {
                         }
                         Err(healthcheck_err) => {
                             eprintln!("Got healthcheck err: {:#?}", healthcheck_err);
-                            match hubs.get_mut(&url) {
+                            match state.hubs.get_mut(&url) {
                                 Some(mut hub) => {
                                     hub.fail_healthcheck();
                                 }

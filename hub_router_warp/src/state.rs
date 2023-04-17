@@ -1,7 +1,26 @@
-use crate::{HubMap};
-use dashmap::DashMap;
+use crate::HubMap;
+use log::warn;
 use serde::{Deserialize, Serialize};
-use std::{fs::read_to_string, io, sync::RwLock};
+use std::{fs::{read_to_string, File}, net::Ipv4Addr, sync::RwLock, io::Write};
+
+#[derive(Debug, Clone)]
+enum PersistPath {
+    Path(String),
+}
+
+impl Into<String> for PersistPath {
+    fn into(self) -> String {
+        match self {
+            PersistPath::Path(s) => s,
+        }
+    }
+}
+
+impl Default for PersistPath {
+    fn default() -> Self {
+        Self::Path("./config.json".into())
+    }
+}
 
 /// HubRouterState is an encapsulation of all configurable state within a
 /// Hub Router instance. the notable exception to this is the session state
@@ -12,7 +31,7 @@ use std::{fs::read_to_string, io, sync::RwLock};
 /// Hubs to route traffic to (this includes runtime state including the session
 /// fullness, but this data is not writeable via the API and not persisted to
 /// disk). It also includes values for
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct HubRouterState {
     #[serde(serialize_with = "crate::utils::serialize_dashmap")]
     #[serde(deserialize_with = "crate::utils::deserialize_dashmap")]
@@ -20,46 +39,51 @@ pub struct HubRouterState {
 
     #[serde(flatten)]
     pub configs: RwLock<HubRouterPrimitiveConfigs>,
+
+    #[serde(skip)]
+    persist_file: PersistPath,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct HubRouterPrimitiveConfigs {
-    reaper_thread_interval: u32,
-    reaper_thread_duration_max: u32,
-    healthcheck_thread_interval: u32,
-    bind_port: u16,
-    api_bind_port: u16,
+    pub reaper_thread_interval: u64,
+    pub reaper_thread_duration_max: u64,
+    pub healthcheck_thread_interval: u64,
+    pub bind_port: u16,
+    pub bind_ip: Ipv4Addr,
+    pub api_bind_port: u16,
+    pub api_bind_ip: Ipv4Addr,
+}
+
+impl Default for HubRouterPrimitiveConfigs {
+    fn default() -> Self {
+        HubRouterPrimitiveConfigs {
+            reaper_thread_interval: 60,
+            reaper_thread_duration_max: 30,
+            healthcheck_thread_interval: 1,
+            bind_port: 6543,
+            bind_ip: Ipv4Addr::UNSPECIFIED,
+            api_bind_port: 8080,
+            api_bind_ip: Ipv4Addr::UNSPECIFIED,
+        }
+    }
 }
 
 impl HubRouterState {
     #[allow(unused)]
-    pub fn new_from_disk(path: &str) -> Result<Self, io::Error> {
+    pub fn new_from_disk(path: &str) -> Self {
         if let Ok(data) = read_to_string(path) {
-            if let Ok(s) = serde_yaml::from_str(&data) {
-                return Ok(s);
+            if let Ok(s) = serde_json::from_str(&data) {
+                return s;
             }
         }
 
-        // let config = Config::builder().add_source(File::with_name(path));
-
-        Ok(Self {
-            hubs: DashMap::new(),
-            configs: RwLock::new(HubRouterPrimitiveConfigs {
-                reaper_thread_interval: 0,
-                reaper_thread_duration_max: 0,
-                healthcheck_thread_interval: 0,
-                bind_port: 8080,
-                api_bind_port: 8081,
-            }),
-        })
+        warn!("Unable to fetch config from disk - falling back to default");
+        Self::default()
     }
 
-    // pub fn get_hubs(&self) -> Arc<HubMap> {
-    //     Arc::new(self.hubs)
-    // }
-
     #[allow(unused)]
-    pub fn get_reaper_interval_secs(&self) -> Option<u32> {
+    pub fn get_reaper_interval_secs(&self) -> Option<u64> {
         match self.configs.read() {
             Ok(v) => Some(v.reaper_thread_interval),
             Err(_) => None,
@@ -67,7 +91,7 @@ impl HubRouterState {
     }
 
     #[allow(unused)]
-    pub fn get_reaper_max_session_mins(&self) -> Option<u32> {
+    pub fn get_reaper_max_session_mins(&self) -> Option<u64> {
         match self.configs.read() {
             Ok(v) => Some(v.reaper_thread_duration_max),
             Err(_) => None,
@@ -75,10 +99,35 @@ impl HubRouterState {
     }
 
     #[allow(unused)]
-    pub fn get_healthcheck_interval_secs(&self) -> Option<u32> {
+    pub fn get_healthcheck_interval_secs(&self) -> Option<u64> {
         match self.configs.read() {
             Ok(v) => Some(v.reaper_thread_interval),
             Err(_) => None,
         }
+    }
+
+    pub fn persist(&self) -> Result<(), String> {
+        let serialized = match serde_json::to_string(
+            self
+        ) {
+            Ok(str) => str,
+            Err(e) => return Err(format!("Error serializing state: {}", e.to_string())),
+        };
+
+        let mut config_file = match File::create::<String>(self.persist_file.clone().into()) {
+            Ok(file) => file,
+            Err(e) => return Err(format!("Error opening config file for serialization: {}", e)),
+        };
+
+        let bytes = serialized.as_bytes();
+        match config_file.write(bytes) {
+            Ok(_) => {}
+            Err(e) => {
+                warn!("Error writing serialized hubs {}", e);
+                return Err(format!("Error writing serialized hubs {}", e));
+            }
+        };
+
+        return Ok(());
     }
 }

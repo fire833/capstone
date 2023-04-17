@@ -4,7 +4,7 @@ use crate::{
         apply_routing_decision, make_routing_decision,
         RoutingPrecedentMap,
     },
-    schema::{NewSessionRequestBody, NewSessionRequestCapability, NewSessionResponse}, HubMap,
+    schema::{NewSessionRequestBody, NewSessionRequestCapability, NewSessionResponse}, state::HubRouterState,
 };
 use hyper::{Body, Client, Method, Request, Response};
 use lazy_static::lazy_static;
@@ -156,7 +156,7 @@ fn test_delete_session() {
 async fn handle_new_session_request(
     mut req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
-    endpoint_map: Arc<HubMap>,
+    state: Arc<HubRouterState>,
 ) -> Result<Response<Body>, HubRouterError> {
     let (requests, reconstructed_request) =
         extract_capabilities_from_new_session_request(req).await?;
@@ -166,7 +166,7 @@ async fn handle_new_session_request(
         None,
         Some(requests),
         routing_map.clone(),
-        endpoint_map.clone(),
+        state.clone(),
     )?;
 
     apply_routing_decision(&mut req, &routing_decision.hub_endpoint)?;
@@ -198,11 +198,11 @@ async fn handle_new_session_request(
 async fn forward_request(
     mut req: Request<Body>,
     _routing_map: Arc<RoutingPrecedentMap>,
-    _endpoint_map: Arc<HubMap>,
+    state: Arc<HubRouterState>,
 ) -> Result<Response<Body>, HubRouterError> {
     let maybe_session_id = extract_session_id(&req);
     let routing_decision =
-        make_routing_decision(maybe_session_id, None, _routing_map, _endpoint_map)?;
+        make_routing_decision(maybe_session_id, None, _routing_map, state)?;
     apply_routing_decision(&mut req, &routing_decision.hub_endpoint)?;
 
     let client = Client::new();
@@ -212,10 +212,10 @@ async fn forward_request(
 async fn handle_delete_session_request(
     req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
-    _endpoint_map: Arc<HubMap>,
+    state: Arc<HubRouterState>,
 ) -> Result<Response<Body>, HubRouterError> {
     let session_id = extract_session_id(&req);
-    let result = forward_request(req, routing_map.clone(), _endpoint_map).await;
+    let result = forward_request(req, routing_map.clone(), state).await;
     routing_map.remove(&session_id.unwrap());
     result
 }
@@ -225,7 +225,7 @@ async fn handle_delete_session_request(
 pub async fn handle(
     req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
-    endpoint_map: Arc<HubMap>,
+    state: Arc<HubRouterState>,
 ) -> Result<Response<Body>, hyper::Error> {
     println!("Got req uri: {:#?}", req.uri());
     let maybe_session_id = extract_session_id(&req);
@@ -233,11 +233,11 @@ pub async fn handle(
     let response: Result<Response<Body>, HubRouterError> = async {
         if is_request_new_session(&req) {
             // handle new sessions differently
-            return handle_new_session_request(req, routing_map, endpoint_map).await;
+            return handle_new_session_request(req, routing_map, state).await;
         } else if is_delete_session(&req) && maybe_session_id.is_some() {
-            return handle_delete_session_request(req, routing_map, endpoint_map).await;
+            return handle_delete_session_request(req, routing_map, state).await;
         }
-        return forward_request(req, routing_map, endpoint_map).await;
+        return forward_request(req, routing_map, state).await;
     }
     .await;
 

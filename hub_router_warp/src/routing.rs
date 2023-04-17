@@ -1,7 +1,7 @@
 use crate::{
     error::{HubRouterError, RoutingError},
     hub::{Hub, HubReadiness},
-    schema::NewSessionRequestCapability, HubMap,
+    schema::NewSessionRequestCapability, state::HubRouterState,
 };
 use dashmap::{mapref::multiple::RefMulti, DashMap};
 use hyper::{Body, Request, Uri};
@@ -35,7 +35,7 @@ pub fn make_routing_decision(
     maybe_session_id: Option<String>,
     optional_requested_capabilities: Option<Vec<NewSessionRequestCapability>>,
     routing_map: Arc<RoutingPrecedentMap>,
-    endpoint_map: Arc<HubMap>,
+    state: Arc<HubRouterState>,
 ) -> Result<RoutingDecision, RoutingError> {
     if let Some(session_id) = &maybe_session_id {
         if let Some(decision) = routing_map.get(session_id) {
@@ -47,7 +47,7 @@ pub fn make_routing_decision(
 
     println!("Making a routing decision for the first time!");
 
-    let mut healthy_hubs_iter = endpoint_map
+    let mut healthy_hubs_iter = state.hubs
         .iter()
         .filter(|h| h.state.get_readiness() == HubReadiness::Ready)
         .peekable();
@@ -117,7 +117,7 @@ pub fn make_routing_decision(
                 }
             };
 
-            let decision_ref = match endpoint_map.get(&decision_uuid) {
+            let decision_ref = match state.hubs.get(&decision_uuid) {
                 Some(hub) => hub,
                 None => {
                     return Err(RoutingError::NoDecision("A hub was selected for routing, but could not be retrieved".into()));

@@ -1,12 +1,10 @@
-use crate::{HubMap};
-use crate::conf::{API_BIND_IP, API_BIND_PORT, update_hub_file, HUBS_FILE_PATH};
+use crate::state::{HubRouterState, HubRouterPrimitiveConfigs};
 use crate::hub::{Hub};
 use crate::routing::{RoutingDecision};
 use crate::schema::Session;
 use crate::ui::WebUIAssets;
-use config::Config;
 use dashmap::DashMap;
-use log::info;
+use log::{info, warn};
 use url::Url;
 use uuid::Uuid;
 use warp::path::Tail;
@@ -14,7 +12,6 @@ use warp::reply::Response;
 use hyper::body::Bytes;
 use hyper::{Client, Request, StatusCode, Uri};
 use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,27 +22,33 @@ use warp::{reply, Filter};
 /// Primary entrypoint for the API. Will run and provide information and capabilities to
 /// update information on the running Hub programatically.
 pub async fn hub_api_thread(
-    hubs: Arc<HubMap>,
-    sessions: Arc<DashMap<String, RoutingDecision>>,
-    config: Arc<config::Config>,
+    state: Arc<HubRouterState>,
+    sessions: Arc<DashMap<String, RoutingDecision>>
 ) {
-    let bind_tuple = config_to_tuple(&config);
+    let bind_tuple = match state.configs.read() {
+        Ok(conf) => {
+            (conf.api_bind_ip, conf.api_bind_port)
+        },
+        Err(err) => {
+            warn!("RWLock was poisoned generating api bind tuple: {}", err);
+            let conf = HubRouterPrimitiveConfigs::default();
+            (conf.api_bind_ip, conf.api_bind_port)
+        },
+    };
     info!("starting api thread");
-    let hubs_filter = warp::any().map(move || hubs.clone());
+    let state_filter = warp::any().map(move || state.clone());
     let sessions_filter = warp::any().map(move || sessions.clone());
-    let config_filter = warp::any().map(move || config.clone());
 
     let get_hubs = warp::get()
         .and(warp::path!("api" / "hubs"))
         .and(warp::path::end())
-        .and(hubs_filter.clone())
+        .and(state_filter.clone())
         .and_then(get_hubs);
 
     let create_hub = warp::post()
         .and(warp::path!("api" / "hubs"))
         .and(warp::path::end())
-        .and(hubs_filter.clone())
-        .and(config_filter.clone())
+        .and(state_filter.clone())
         .and(warp::body::content_length_limit(1024 * 16))
         .and(warp::body::json())
         .and_then(create_hub);
@@ -53,7 +56,7 @@ pub async fn hub_api_thread(
     let delete_hub = warp::delete()
         .and(warp::path!("api" / "hubs" / Uuid))
         .and(warp::path::end())
-        .and(hubs_filter.clone())
+        .and(state_filter.clone())
         .and_then(delete_hub);
 
     let get_sessions = warp::get()
@@ -66,13 +69,13 @@ pub async fn hub_api_thread(
         .and(warp::path!("api" / "graphql"))
         .and(warp::path::end())
         .and(warp::body::bytes())
-        .and(hubs_filter.clone())
+        .and(state_filter.clone())
         .and_then(aggregate_graphql_responses);
 
     let aggregate_status_responses = warp::get()
         .and(warp::path!("api" / "hubs" / "status"))
         .and(warp::path::end())
-        .and(hubs_filter.clone())
+        .and(state_filter.clone())
         .and_then(aggregate_status_responses);
 
     let get_ui = warp::get()
@@ -104,10 +107,10 @@ pub async fn hub_api_thread(
         .await;
 }
 
-async fn get_hubs(hubs: Arc<HubMap>) -> Result<impl warp::Reply, warp::Rejection> {
+async fn get_hubs(state: Arc<HubRouterState>) -> Result<impl warp::Reply, warp::Rejection> {
     let mut lhubs: Vec<Hub> = vec![];
 
-    for hub in hubs.iter() {
+    for hub in state.hubs.iter() {
         let c = hub.clone();
         lhubs.push(c);
     }
@@ -121,8 +124,7 @@ struct HubNameAndURL {
     url: String
 }
 async fn create_hub(
-    hubs: Arc<HubMap>,
-    config: Arc<Config>,
+    state: Arc<HubRouterState>,
     meta: HubNameAndURL
 ) -> Result<impl warp::Reply, warp::Rejection> {
     println!("creating new hub...");
@@ -134,24 +136,18 @@ async fn create_hub(
         },
     };
 
-    if hubs.iter().any(|e| &e.meta.url == &url) {
+    if state.hubs.iter().any(|e| &e.meta.url == &url) {
         return Ok(warp::reply::with_status(
             format!("hub at {} already registered", url.as_str()),
             StatusCode::NOT_ACCEPTABLE,
         ));
     } else {
         let new_hub = Hub::new_with_name(&meta.name, url);
-        hubs.insert(new_hub.meta.uuid, new_hub);
-        match config.get(HUBS_FILE_PATH) {
-            Ok(path) => {
-                if let Err(e) = update_hub_file(hubs, path) {
-                    eprintln!("Error updating hub file: {}", e);
-                }
-            },
-            Err(e) => {
-                eprintln!("Could not fetch hub file path from config: {}, this hub will not be persisted to disk", e);
-            },
-        };
+        state.hubs.insert(new_hub.meta.uuid, new_hub);
+        if let Err(e) = state.persist() {
+            return Ok(warp::reply::with_status(
+                format!("Unable to persist new hub: {}", e), StatusCode::INTERNAL_SERVER_ERROR));
+        }
     }
 
     return Ok(warp::reply::with_status(
@@ -162,9 +158,9 @@ async fn create_hub(
 
 async fn delete_hub(
     uuid: Uuid,
-    hubs: Arc<HubMap>,
+    state: Arc<HubRouterState>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    hubs.remove(&uuid);
+    state.hubs.remove(&uuid);
     Ok(warp::reply::reply())
 }
 
@@ -276,8 +272,8 @@ struct APIHubsStatusResponse {
     router_hub_state: Hub
 }
 
-async fn aggregate_status_responses(hubs: Arc<HubMap>) -> Result<impl warp::Reply, warp::Rejection> {
-    let unvalidated_requests: Vec<_> = hubs
+async fn aggregate_status_responses(state: Arc<HubRouterState>) -> Result<impl warp::Reply, warp::Rejection> {
+    let unvalidated_requests: Vec<_> = state.hubs
         .iter()
         .map(|h| {
             let uri = Uri::from_str({
@@ -307,7 +303,7 @@ async fn aggregate_status_responses(hubs: Arc<HubMap>) -> Result<impl warp::Repl
 
     let mut req_join_set: JoinSet<APIHubsStatusResponse>  = JoinSet::new();
 
-    for (req, hub) in validated_requests.into_iter().zip(hubs.iter()) {
+    for (req, hub) in validated_requests.into_iter().zip(state.hubs.iter()) {
         let cloned_hub = hub.clone();
         req_join_set.spawn(async move {
             let response = make_single_aggregate_request(req).await;
@@ -351,9 +347,9 @@ async fn aggregate_status_responses(hubs: Arc<HubMap>) -> Result<impl warp::Repl
 // TODO: clean up
 async fn aggregate_graphql_responses(
     graphql_request: Bytes,
-    hubs: Arc<HubMap>,
+    state: Arc<HubRouterState>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let unvalidated_requests: Vec<_> = hubs
+    let unvalidated_requests: Vec<_> = state.hubs
         .iter()
         .map(|h| {
             let uri = Uri::from_str({
@@ -397,34 +393,4 @@ async fn aggregate_graphql_responses(
             StatusCode::INTERNAL_SERVER_ERROR,
         )),
     }
-}
-
-/// function to parse contents from configuration and return the address to bind on.
-fn config_to_tuple(configs: &config::Config) -> SocketAddr {
-
-    let api_ip = match configs.get_string(API_BIND_IP) {
-        Ok(str) => {
-            match Ipv4Addr::from_str(&str) {
-                Ok(ip) => ip,
-                Err(e) => {
-                    eprintln!("Error parsing API bind IP: {}, defaulting to 0.0.0.0", e);
-                    Ipv4Addr::UNSPECIFIED
-                },
-            }
-        },
-        Err(e) => {
-            eprintln!("Could not fetch API bind IP from config: {}, defaulting to 0.0.0.0", e);
-            Ipv4Addr::UNSPECIFIED
-        },
-    };
-
-    let api_port: u16 = match configs.get(API_BIND_PORT) {
-        Ok(port) => port,
-        Err(e) => {
-            eprintln!("Could not fetch API bind IP from config: {}, defaulting to 8080", e);
-            8080
-        }
-    };
-
-    SocketAddr::new(IpAddr::V4(api_ip), api_port)
 }

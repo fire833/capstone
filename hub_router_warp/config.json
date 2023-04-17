@@ -1,11 +1,24 @@
 {
-    "$schema": "https://fire833.github.io/capstone/hub_router_config_schema.json",
+    "hubs": [
+        {
+            "meta": {
+                "name": "Hub 1",
+                "url": "http://192.168.49.2:30000/",
+                "uuid": "6cd09b3e-a76f-4536-b55e-807f3b4d87f0"
+            },
+            "state": {
+                "fullness": 0,
+                "stereotypes": [],
+                "readiness": "Unhealthy",
+                "consecutive_healthcheck_failures": 0
+            }
+        }
+    ],
     "reaper_thread_interval": 60,
-    "api_bind_ip": "0.0.0.0",
-    "api_bind_port": 8080,
+    "reaper_thread_duration_max": 30,
     "healthcheck_thread_interval": 1,
-    "hubs_file_path": "./hubs.ser",
-    "proxy_bind_ip": "0.0.0.0",
-    "proxy_bind_port": 6543,
-    "reaper_max_session_mins": 30
+    "bind_port": 6543,
+    "bind_ip": "0.0.0.0",
+    "api_bind_port": 8080,
+    "api_bind_ip": "0.0.0.0"
 }
