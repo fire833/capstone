@@ -77,17 +77,22 @@ impl Default for HubRouterPrimitiveConfigs {
 impl HubRouterState {
     #[allow(unused)]
     pub fn new_from_disk(path: &str) -> Self {
-
-        let state = {
-            if let Ok(data) = read_to_string(path) {
-                if let Ok(s) = serde_json::from_str(&data) {
-                    s
+        let state = match read_to_string(path) {
+            Ok(data) => match serde_json::from_str::<HubRouterState>(&data) {
+                Ok(s) => s,
+                Err(e) => {
+                    warn!("Error deserializing state: {}, falling back to default", e);
+                    Self::default()
                 }
+            },
+            Err(e) => {
+                warn!("Could not config file: {} - falling back to default", e);
+                Self::default()
             }
-            Self::default()
         };
 
         state.hubs.alter_all(|_, v| v.clone_from_meta());
+        println!("Serialized hubs: {:#?}", state.hubs);
         warn!("Unable to fetch config from disk - falling back to default");
         state
     }
@@ -117,7 +122,7 @@ impl HubRouterState {
     }
 
     pub fn persist(&self) -> Result<(), String> {
-        let serialized = match serde_json::to_string(self) {
+        let serialized = match serde_json::to_string_pretty(self) {
             Ok(str) => str,
             Err(e) => return Err(format!("Error serializing state: {}", e.to_string())),
         };
