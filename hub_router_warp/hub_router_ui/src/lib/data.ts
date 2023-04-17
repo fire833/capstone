@@ -176,3 +176,11 @@ export function get_breadcrumb_siblings(
     let sessions = nodes[breadcrumb[1]].slots;
     return sessions;
 }
+
+export function sort_hubs(hubs: APIStatusData[]): APIStatusData[] {
+    let copy = [...hubs];
+    copy.sort((a, b) =>
+        a.router_hub_state.meta.name.localeCompare(b.router_hub_state.meta.name)
+    );
+    return copy;
+}

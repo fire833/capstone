@@ -40,14 +40,6 @@
         return flat;
     }
 
-    function sort_hubs(hubs: APIStatusData[]): APIStatusData[] {
-        let copy = [...hubs];
-        copy.sort((a, b) =>
-            a.router_hub_state.meta.name.localeCompare(b.router_hub_state.meta.name)
-        );
-        return copy;
-    }
-
     import Chrome from "./assets/chrome.191aefd5192c43508fa5f86da6808929.svelte";
     import Edge from "./assets/edge.d2a278165ff8e7dcc4af17246954a0e1.svelte";
     import Firefox from "./assets/firefox.efda58979e042bab7c689eab277b5a5d.svelte";

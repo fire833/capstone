@@ -1,15 +1,10 @@
 <script lang="ts">
-  import { api_data, type APIStatusData } from "./lib/data";
+  import { api_data, sort_hubs, type APIStatusData } from "./lib/data";
   import Hub from "./Hub.svelte";
   import AddHub from "./AddHub.svelte";
+  import RemoveHub from "./RemoveHub.svelte";
+    import Configure from "./Configure.svelte";
 
-  function sort_hubs(hubs: APIStatusData[]): APIStatusData[] {
-    let copy = [...hubs];
-    copy.sort((a, b) =>
-      a.router_hub_state.meta.name.localeCompare(b.router_hub_state.meta.name)
-    );
-    return copy;
-  }
   
 </script>
 
@@ -27,6 +22,11 @@
           <Hub {hub_data} />
         {/each}
         <AddHub />
+        <RemoveHub />
+      </div>
+      <h1>Configure</h1>
+      <div class="hubs-row">
+        <Configure></Configure>
       </div>
     </div>
   </div>

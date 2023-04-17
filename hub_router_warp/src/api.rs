@@ -63,6 +63,19 @@ pub async fn hub_api_thread(
         .and(state_filter.clone())
         .and_then(set_config);
 
+    let get_router_config = warp::get()
+        .and(warp::path!("api" / "config"))
+        .and(warp::path::end())
+        .and(state_filter.clone())
+        .and_then(get_config);
+
+    let set_router_config = warp::post()
+        .and(warp::path!("api" / "config"))
+        .and(warp::path::end())
+        .and(warp::body::json::<HubRouterPrimitiveConfigs>())
+        .and(state_filter.clone())
+        .and_then(set_entire_config);
+
     let get_sessions = warp::get()
         .and(warp::path!("api" / "sessions"))
         .and(warp::path::end())
@@ -95,6 +108,8 @@ pub async fn hub_api_thread(
         .or(aggregate_graphql_responses)
         .or(aggregate_status_responses)
         .or(set_config_values)
+        .or(get_router_config)
+        .or(set_router_config)
         .or(warp::any().map(|| {
             Ok(warp::reply::with_status(
                 reply::reply(),
@@ -273,6 +288,45 @@ async fn set_config(
             StatusCode::NOT_ACCEPTABLE,
         ));
     }
+}
+
+async fn get_config(state: Arc<HubRouterState>) -> Result<impl warp::Reply, warp::Rejection> {
+    match state.configs.read() {
+        Ok(conf) => Ok(warp::reply::with_status(
+            warp::reply::json(&*conf),
+            StatusCode::OK,
+        )),
+        Err(e) => Ok(warp::reply::with_status(
+            warp::reply::json(&format!("unable to acquire read lock for configs: {}", e)),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )),
+    }
+}
+
+async fn set_entire_config(
+    config: HubRouterPrimitiveConfigs,
+    state: Arc<HubRouterState>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    let res = match state.configs.write() {
+        Ok(mut conf) => {
+            *conf = config;
+            Ok(warp::reply::with_status("ok".into(), StatusCode::OK))
+        },
+        Err(e) => Ok(warp::reply::with_status(
+            format!("unable to acquire read lock for configs: {}", e),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )),
+    };
+
+
+    if let Err(e) = state.persist() {
+        return Ok(warp::reply::with_status(
+            format!("Unable to persist configuration changes: {}", e),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+    
+    res
 }
 
 #[derive(Debug, Serialize, Deserialize)]

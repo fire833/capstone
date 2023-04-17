@@ -1,6 +1,7 @@
 <script lang="ts">
     import { createEventDispatcher } from "svelte";
     import Modal from "./Modal.svelte";
+    import { api_data, sort_hubs } from "./lib/data";
 
 
     $: modal_active = false;
@@ -10,12 +11,10 @@
         modal_active = true;
     }
 
-    let hub_url: string;
-    let hub_name: string;
+    let hub_uuid: string;
 
     function clearForm(){
-        hub_url = undefined;
-        hub_name = undefined;
+        hub_uuid = undefined;
     }
 
     let error_text: string;
@@ -24,13 +23,9 @@
 
         error_text = undefined;
 
-        let res = await fetch(`${window.location.origin}/api/hubs`, {
-            method: "POST",
+        let res = await fetch(`${window.location.origin}/api/hubs/${hub_uuid}`, {
+            method: "DELETE",
             headers: [["Content-Type", "application/json"]],
-            body: JSON.stringify({
-                url: hub_url,
-                name: hub_name
-            })
         });
 
 
@@ -44,8 +39,8 @@
 </script>
 
 <div class="add-hub-card" style="--hash-color: var(--foreground-secondary)" on:click={openModal} on:keydown={(e) => e.key === "Enter" ? openModal() : undefined}>
-    <h1>+</h1>
-    <p style="text-align: center;">Register New</p>
+    <h1>-</h1>
+    <p style="text-align: center;">Deregister</p>
     <span class="corner topleft" />
     <span class="corner topright" />
     <span class="corner botleft" />
@@ -53,27 +48,30 @@
 </div>
 
 <Modal bind:modal_active on:close_modal={clearForm}>
-    <div on:click|stopPropagation class="add-hub-modal-inner" on:keypress={() => {}}>
-        <h1 style="line-height: 100%;">Register New Hub</h1>
-        <hr style="margin-top: 0.5em;"/>
-    
-        <form on:submit|preventDefault={registerHub}>
-            <span>
-                <label for="huburl">Hub URL</label>
-                <input bind:value={hub_url} id="huburl" type="text" placeholder="http://myhuburl.com:1234/"/>
-            </span>
-            <span>
-                <label for="hubname">Hub Name</label>
-                <input bind:value={hub_name} id="hubname "type="text" placeholder="Example Hub"/>
-            </span>
-    
-            <button style="margin-top: 0.5em;">Register</button>
-    
-            {#if error_text}
-                <p style="color: var(--error);">{error_text}</p>
-            {/if}
-        </form>
-    </div>
+    {#if  $api_data.state === "Success"}
+        <div on:click|stopPropagation class="add-hub-modal-inner" on:keypress={() => {}}>
+            <h1 style="line-height: 100%;">Deregister Hub</h1>
+            <hr style="margin-top: 0.5em;"/>
+        
+            <form on:submit|preventDefault={registerHub}>
+                <span>
+                    <label for="hubuuid">Hub</label>
+                    <select bind:value={hub_uuid} id="hubuuid">
+                        <option disabled selected>Select a hub</option>
+                        {#each sort_hubs($api_data.data) as hub}
+                            <option value={hub.router_hub_state.meta.uuid}>{hub.router_hub_state.meta.name} - {hub.router_hub_state.meta.url}</option>
+                        {/each}
+                    </select>
+                </span>
+
+                <button style="margin-top: 0.5em;">Deregister</button>
+        
+                {#if error_text}
+                    <p style="color: var(--error);">{error_text}</p>
+                {/if}
+            </form>
+        </div>
+    {/if}
 </Modal>
 
 <style>
@@ -97,15 +95,14 @@
         box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
     }
 
+
     hr {
         border: 1px solid var(--middle);
     }
 
     .add-hub-modal-inner {
         padding: 2em;
-        width: 100%;
-        height: 100%;
-        overflow-y: auto;
+        position: relative;
     }
 
     form {
