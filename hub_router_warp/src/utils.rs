@@ -1,5 +1,6 @@
 use dashmap::DashMap;
 use serde::{de::Visitor, ser::SerializeSeq, Deserializer, Serializer};
+use url::Url;
 
 use crate::{hub::Hub, HubMap};
 
@@ -12,13 +13,16 @@ impl<'de> Visitor<'de> for UuidVisitor {
         formatter.write_str("a valid uuid")
     }
 
-    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        match uuid::Builder::from_slice(v.as_bytes()) {
-            Ok(uuid) => Ok(uuid.into_uuid()),
-            Err(e) => Err(E::custom(e.to_string())),
+        match uuid::Uuid::parse_str(v) {
+            Ok(uuid) => Ok(uuid),
+            Err(e) => {
+                eprintln!("UUID visit errors with: {}", e);
+                Err(E::custom(e.to_string()))
+            }
         }
     }
 }
@@ -43,14 +47,14 @@ impl<'de> Visitor<'de> for UrlVisitor {
     type Value = url::Url;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a valid url")
+        formatter.write_str("a valid hub url")
     }
 
-    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        match url::Url::parse(v.as_str()) {
+        match url::Url::parse(v) {
             Ok(url) => Ok(url),
             Err(e) => Err(E::custom(e.to_string())),
         }
@@ -68,7 +72,7 @@ pub fn deserialize_url<'de, D>(deserializer: D) -> Result<url::Url, D::Error>
 where
     D: Deserializer<'de>,
 {
-    deserializer.deserialize_str(UrlVisitor)
+    deserializer.deserialize_string(UrlVisitor)
 }
 
 struct DashMapVisitor;

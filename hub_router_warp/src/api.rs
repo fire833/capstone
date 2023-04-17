@@ -1,9 +1,10 @@
-use crate::HubMap;
-use crate::conf::{API_BIND_IP, API_BIND_PORT};
+use crate::{HubMap};
+use crate::conf::{API_BIND_IP, API_BIND_PORT, update_hub_file, HUBS_FILE_PATH};
 use crate::hub::{Hub};
 use crate::routing::{RoutingDecision};
 use crate::schema::Session;
 use crate::ui::WebUIAssets;
+use config::Config;
 use dashmap::DashMap;
 use log::info;
 use url::Url;
@@ -28,9 +29,11 @@ pub async fn hub_api_thread(
     sessions: Arc<DashMap<String, RoutingDecision>>,
     config: Arc<config::Config>,
 ) {
+    let bind_tuple = config_to_tuple(&config);
     info!("starting api thread");
     let hubs_filter = warp::any().map(move || hubs.clone());
     let sessions_filter = warp::any().map(move || sessions.clone());
+    let config_filter = warp::any().map(move || config.clone());
 
     let get_hubs = warp::get()
         .and(warp::path!("api" / "hubs"))
@@ -42,6 +45,7 @@ pub async fn hub_api_thread(
         .and(warp::path!("api" / "hubs"))
         .and(warp::path::end())
         .and(hubs_filter.clone())
+        .and(config_filter.clone())
         .and(warp::body::content_length_limit(1024 * 16))
         .and(warp::body::json())
         .and_then(create_hub);
@@ -96,7 +100,7 @@ pub async fn hub_api_thread(
         );
 
     warp::serve(routes)
-        .run(config_to_tuple(config.as_ref()))
+        .run(bind_tuple)
         .await;
 }
 
@@ -118,10 +122,10 @@ struct HubNameAndURL {
 }
 async fn create_hub(
     hubs: Arc<HubMap>,
+    config: Arc<Config>,
     meta: HubNameAndURL
 ) -> Result<impl warp::Reply, warp::Rejection> {
     println!("creating new hub...");
-
 
     let url = match Url::from_str(&meta.url){
         Ok(url) => url,
@@ -138,6 +142,16 @@ async fn create_hub(
     } else {
         let new_hub = Hub::new_with_name(&meta.name, url);
         hubs.insert(new_hub.meta.uuid, new_hub);
+        match config.get(HUBS_FILE_PATH) {
+            Ok(path) => {
+                if let Err(e) = update_hub_file(hubs, path) {
+                    eprintln!("Error updating hub file: {}", e);
+                }
+            },
+            Err(e) => {
+                eprintln!("Could not fetch hub file path from config: {}, this hub will not be persisted to disk", e);
+            },
+        };
     }
 
     return Ok(warp::reply::with_status(
@@ -385,19 +399,32 @@ async fn aggregate_graphql_responses(
     }
 }
 
-/// terrible function to parse contents from configuration and return the address to bind on.
+/// function to parse contents from configuration and return the address to bind on.
 fn config_to_tuple(configs: &config::Config) -> SocketAddr {
-    if let Ok(ip) = configs.get_string(API_BIND_IP) {
-        if let Ok(port) = configs.get::<u16>(API_BIND_PORT) {
-            if let Ok(parsed) = IpAddr::from_str(&ip) {
-                return SocketAddr::new(parsed, port);
-            } else {
-                return SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port);
+
+    let api_ip = match configs.get_string(API_BIND_IP) {
+        Ok(str) => {
+            match Ipv4Addr::from_str(&str) {
+                Ok(ip) => ip,
+                Err(e) => {
+                    eprintln!("Error parsing API bind IP: {}, defaulting to 0.0.0.0", e);
+                    Ipv4Addr::UNSPECIFIED
+                },
             }
-        } else {
-            return SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 8080);
+        },
+        Err(e) => {
+            eprintln!("Could not fetch API bind IP from config: {}, defaulting to 0.0.0.0", e);
+            Ipv4Addr::UNSPECIFIED
+        },
+    };
+
+    let api_port: u16 = match configs.get(API_BIND_PORT) {
+        Ok(port) => port,
+        Err(e) => {
+            eprintln!("Could not fetch API bind IP from config: {}, defaulting to 8080", e);
+            8080
         }
-    } else {
-        return SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 8080);
-    }
+    };
+
+    SocketAddr::new(IpAddr::V4(api_ip), api_port)
 }

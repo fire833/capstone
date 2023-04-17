@@ -1,15 +1,16 @@
 use crate::api::hub_api_thread;
-use crate::conf::load_in_config;
-use crate::hub::{hub_healthcheck_thread, Hub};
+use crate::conf::{load_in_config, PROXY_BIND_IP, PROXY_BIND_PORT, HUBS_FILE_PATH};
+use crate::hub::{hub_healthcheck_thread, Hub, HubMetadata};
 use ::config::Config;
 use clap::Parser;
 use dashmap::DashMap;
 use handler::handle;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::Server;
-use routing::{Endpoint, RoutingPrecedentMap};
+use routing::{RoutingPrecedentMap};
 use uuid::Uuid;
 use std::convert::Infallible;
+use std::fs::read_to_string;
 #[allow(unused)]
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
@@ -31,68 +32,59 @@ mod ui;
 #[derive(clap::Parser, Debug)]
 
 struct Args {
-    #[arg(long, default_value_t = 6543)]
-    bind_port: u16,
-
-    #[arg(long, default_value_t = IpAddr::from_str("0.0.0.0").unwrap())]
-    bind_ip: IpAddr,
-
-    /// An ip:port endpoint to route to.
-    /// Can be used multiple times.
-    /// example: --endpoint 192.168.1.1:1234 --endpoint 192.168.1.2:4321
-    #[arg(long, value_parser=url::Url::parse)]
-    endpoint: Vec<Endpoint>,
-
     /// Location to read in configuration file from.
-    #[arg(short, long, default_value_t = String::from("/etc/router_warp/config.yaml"))]
+    #[arg(short, long, default_value_t = String::from("./config.yaml"))]
     config_location: String,
+
 }
 
-#[test]
-fn test_parse_ip() {
-    // let t1 = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
-    // assert_eq!(Ok((t1, 5555)), parse_endpoint("127.0.0.1:5555"));
-
-    // let t2 = IpAddr::V4(Ipv4Addr::new(10, 50, 1, 1));
-    // assert_eq!(Ok((t2, 32456)), parse_endpoint("10.50.1.1:32456"));
-}
 
 pub type HubMap = DashMap<Uuid, Hub>;
-
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let mut _config: Config;
-
-    match load_in_config(&args.config_location) {
+    let config: Config = match load_in_config(&args.config_location) {
         Ok(conf) => {
-            _config = conf;
+            conf
         }
         Err(e) => {
             eprintln!("Error loading configuration: {}", e);
             return;
         }
-    }
+    };
+    let config = Arc::new(config);
 
-    println!("Got endpoints: {:#?}", args.endpoint);
+    let hub_file_path = match config.get(HUBS_FILE_PATH) {
+        Ok(path) => path,
+        Err(e) => {
+            eprintln!("Could not fetch hub file path from config: {}, defaulting to ./hubs.ser", e);
+            "./hubs.ser".to_string()
+        }
+    };
 
-    // Parse out the hubs from the args and organize them in a DashMap
-    let _hubs_list: Vec<Hub> = args
-        .endpoint
-        .iter()
-        .map(|url| Hub::new(url.clone()))
-        .collect();
-    let _hubs: HubMap = DashMap::new();
-    for h in &_hubs_list {
-        _hubs.insert(h.meta.uuid, h.clone());
-    }
-
-    // Global config.
-    let config = Arc::new(_config);
-
-    // Global hubs list.
-    let hubs = Arc::new(_hubs);
+    // Load serialized hubs from the hubs file, and create a DashMap
+    let hubs: HubMap = match read_to_string(hub_file_path) {
+        Ok(serialized_hubs) => {
+            let deserialized_hubs: Result<Vec<HubMetadata>, _> = serde_json::from_str(&serialized_hubs);
+            match deserialized_hubs {
+                Ok(hubs) => {
+                    let map: HubMap = DashMap::new();
+                    hubs.into_iter().for_each(|h| {map.insert(h.uuid, Hub::from_meta(h));});
+                    map
+                },
+                Err(e) => {
+                    eprintln!("Error deserializing hubs: {}, no hubs will be initially registered", e);
+                    DashMap::new()
+                }
+            }
+        },
+        Err(_) => {
+            eprintln!("Could not open hubs file - no hubs will be initially registered");
+            DashMap::new()
+        }
+    };
+    let hubs = Arc::new(hubs);
 
     // Global session handler map.
     let sessions: Arc<RoutingPrecedentMap> = Arc::new(DashMap::new());
@@ -110,8 +102,6 @@ async fn main() {
         let config_clone = config.clone();
         async move { hub_api_thread(hub_clone, sessions_clone, config_clone).await }
     });
-
-    println!("Binding on {}:{}", args.bind_ip, args.bind_port);
 
     // Spawn reaper thread for dead threads sitting around in the queue.
     tokio::task::spawn({
@@ -145,8 +135,32 @@ async fn main() {
         }
     });
 
-    // TODO: make sense of this utter mess
-    let server = Server::bind(&SocketAddr::from((args.bind_ip, args.bind_port))).serve(
+    let bind_ip_str: String = match config.get(PROXY_BIND_IP) {
+        Ok(str) => str,
+        Err(e) => {
+            eprintln!("Could not load proxy bind IP from config: {}, falling back to 0.0.0.0", e);
+            "0.0.0.0".into()
+        }
+    };
+    let bind_ip = match Ipv4Addr::from_str(&bind_ip_str) {
+        Ok(ip) => ip,
+        Err(e) => {
+            eprintln!("Invalid proxy IP: {}", e);
+            return;
+        }
+    };
+    let bind_port = match config.get(PROXY_BIND_PORT){
+        Ok(port) => port,
+        Err(e) => {
+            eprintln!("Could not load proxy port from config, falling back to 6543: {}", e);
+            6543
+        }
+    };
+
+
+    println!("Binding on {}:{}", bind_ip, bind_port);
+
+    let server = Server::bind(&SocketAddr::from((bind_ip, bind_port))).serve(
         make_service_fn(move |_con| {
             let map = sessions.clone();
             let hub_map = hubs.clone();
