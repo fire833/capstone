@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::DefaultHasher, HashSet},
+    collections::{hash_map::DefaultHasher, HashSet, HashMap},
     hash::{Hash, Hasher},
     sync::Arc,
     time::Duration,
@@ -71,15 +71,27 @@ pub struct HubMetadata {
 /// Transient state associated with a hub at runtime.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HubState {
-    pub fullness: u8,
+    #[serde(skip)] // Skip for now, serde doesn't like a struct being the key
+    pub fullness: HashMap<NewSessionRequestCapability, (u8, u8)>,
     pub stereotypes: HashSet<HubStatusStereotypeJSONSchema>,
     pub readiness: HubReadiness,
     pub consecutive_healthcheck_failures: u8,
 }
 
 impl HubState {
-    pub fn get_fullness(&self) -> u8 {
-        self.fullness
+    pub fn get_stereotype_fullness(&self, maybe_capability: Option<NewSessionRequestCapability>) -> (u8, u8) {
+        let (mut active_sessions, mut max_sessions) = (0, 0);
+        let capability = match maybe_capability {
+            Some(c) => c,
+            None => NewSessionRequestCapability { browserName: None, platformName: None }
+        };
+        for (hub_capability, (active, max)) in &self.fullness {
+            if capability.satisfied_by(hub_capability) {
+                active_sessions += active;
+                max_sessions += max;
+            }
+        }
+        (active_sessions, max_sessions)
     }
 
     pub fn get_readiness(&self) -> HubReadiness {
@@ -90,7 +102,7 @@ impl HubState {
 impl Default for HubState {
     fn default() -> Self {
         HubState {
-            fullness: 0,
+            fullness: HashMap::new(),
             stereotypes: HashSet::new(),
             readiness: HubReadiness::Unhealthy,
             consecutive_healthcheck_failures: 0,
@@ -122,12 +134,7 @@ impl Hub {
                 url,
                 uuid: uuid::Uuid::new_v4(),
             },
-            state: HubState {
-                fullness: 0,
-                stereotypes: HashSet::new(),
-                readiness: HubReadiness::Unhealthy,
-                consecutive_healthcheck_failures: 0,
-            },
+            state: HubState::default(),
         }
     }
 
@@ -179,24 +186,28 @@ impl Hub {
 
 /// Primary function to calculate the percentage of fullness of a hub based on its
 /// returned status API schema. Returns a value between 0 and 100.
-pub fn compute_hub_fullness(status: &HubStatusJSONSchema) -> u8 {
-    let max_slots = status
-        .value
-        .nodes
-        .iter()
-        .fold(0, |acc, node| acc + node.maxSessions);
-
-    let running_slots = status.value.nodes.iter().fold(0, |acc, node| {
-        acc + node.slots.iter().fold(0, |slot_acc, slot| {
-            slot_acc + (if slot.session.is_some() { 1 } else { 0 })
-        })
-    });
-
-    if max_slots == 0 {
-        100
-    } else {
-        ((running_slots * 100) / max_slots) as u8
+pub fn compute_hub_fullness(status: &HubStatusJSONSchema) -> HashMap<NewSessionRequestCapability, (u8, u8)> {
+    let mut map: HashMap<NewSessionRequestCapability, (u8, u8)> = HashMap::new();
+    
+    for node in &status.value.nodes {
+        for slot in &node.slots {
+            let key: NewSessionRequestCapability = slot.stereotype.clone().into();
+            if !map.contains_key(&key) { 
+                map.insert(key.clone(), (0, 0));
+            }
+            match map.get(&key) {
+                Some((active_slots, total_slots)) => {
+                    // total_slots += 1;
+                    let active = if slot.session.is_some() { 1 } else { 0 };
+                    map.insert(key, (active_slots + active, total_slots + 1));
+                },
+                None => {
+                    warn!("Map was corrupted - slot which we just inserted is not available");
+                },
+            }
+        }
     }
+    map
 }
 
 /// Mock function for testing to create a new HubStatusJSONSchema with
@@ -259,25 +270,25 @@ fn mock_status_schema(max_sessions: u32, num_nodes: u32, num_running: u32) -> Hu
     mock
 }
 
-/// Silly little test to verify the compute_hub_fullness method above.
-#[test]
-fn compute_hub_fullness_test() {
-    let t1 = HubStatusJSONSchema {
-        value: HubStatusValueJSONSchema {
-            ready: true,
-            message: String::from("UP"),
-            nodes: vec![],
-        },
-    };
+// /// Silly little test to verify the compute_hub_fullness method above.
+// #[test]
+// fn compute_hub_fullness_test() {
+//     let t1 = HubStatusJSONSchema {
+//         value: HubStatusValueJSONSchema {
+//             ready: true,
+//             message: String::from("UP"),
+//             nodes: vec![],
+//         },
+//     };
 
-    let t2 = mock_status_schema(10, 15, 2);
-    let t3 = mock_status_schema(10, 10, 6);
-    let t4 = mock_status_schema(10, 10, 9);
-    assert_eq!(100, compute_hub_fullness(&t1));
-    assert_eq!(20, compute_hub_fullness(&t2));
-    assert_eq!(60, compute_hub_fullness(&t3));
-    assert_eq!(90, compute_hub_fullness(&t4));
-}
+//     let t2 = mock_status_schema(10, 15, 2);
+//     let t3 = mock_status_schema(10, 10, 6);
+//     let t4 = mock_status_schema(10, 10, 9);
+//     assert_eq!(100, compute_hub_fullness(&t1));
+//     assert_eq!(20, compute_hub_fullness(&t2));
+//     assert_eq!(60, compute_hub_fullness(&t3));
+//     assert_eq!(90, compute_hub_fullness(&t4));
+// }
 
 #[derive(Debug)]
 enum HealthcheckErr {

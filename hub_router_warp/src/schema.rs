@@ -92,12 +92,28 @@ pub struct HubStatusNodeSlotSessionCapabilitiesJSONSchema {
     pub browserVersion: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq)]
 #[allow(non_snake_case)]
 
 pub struct HubStatusStereotypeJSONSchema {
     pub browserName: String,
     pub platformName: String,
+}
+
+impl PartialEq for HubStatusStereotypeJSONSchema {
+    fn eq(&self, other: &Self) -> bool {
+        self.browserName.eq_ignore_ascii_case(&other.browserName)
+            && self.platformName.eq_ignore_ascii_case(&other.platformName)
+    }
+}
+
+impl Into<NewSessionRequestCapability> for HubStatusStereotypeJSONSchema {
+    fn into(self) -> NewSessionRequestCapability {
+        NewSessionRequestCapability {
+            browserName: Some(self.browserName),
+            platformName: Some(self.platformName),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
@@ -121,6 +137,20 @@ pub struct NewSessionRequestCapabilities {
 pub struct NewSessionRequestCapability {
     pub browserName: Option<String>,
     pub platformName: Option<String>,
+}
+
+impl NewSessionRequestCapability {
+    pub fn satisfied_by(&self, other: &NewSessionRequestCapability) -> bool {
+        if self.platformName.is_some() && self.platformName != other.platformName {
+            return false;
+        }
+
+        if self.browserName.is_some() && self.browserName != other.browserName {
+            return false;
+        }
+
+        return true;
+    }
 }
 
 /// Session is the object for serializing internal session data for

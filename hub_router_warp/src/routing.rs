@@ -63,10 +63,11 @@ pub fn make_routing_decision(
     let healthy_hubs: Vec<_> = healthy_hubs_iter.collect();
 
     // get a list of hubs which satisfy the request
-    let potential_hubs: Option<Vec<&RefMulti<Uuid, Hub>>> = match &optional_requested_capabilities {
-        None => Some(healthy_hubs.iter().collect()),
+    let (potential_hubs, satisfied_capability): (Option<Vec<&RefMulti<Uuid, Hub>>>, Option<NewSessionRequestCapability>) = match &optional_requested_capabilities {
+        None => (Some(healthy_hubs.iter().collect()), None),
         Some(requested_capabilities) => {
             let mut satisfying_hubs: Option<Vec<&RefMulti<Uuid, Hub>>> = None;
+            let mut satisfying_capability: Option<NewSessionRequestCapability> = None;
             for capability in requested_capabilities {
                 let can_satisfy: Vec<_> = healthy_hubs
                     .iter()
@@ -74,10 +75,11 @@ pub fn make_routing_decision(
                     .collect();
                 if can_satisfy.len() > 0 {
                     satisfying_hubs = Some(can_satisfy);
+                    satisfying_capability = Some(capability.clone());
                     break;
                 }
             }
-            satisfying_hubs
+            (satisfying_hubs, satisfying_capability)
         }
     };
 
@@ -86,19 +88,22 @@ pub fn make_routing_decision(
             println!("Found {} healthy hubs to route to", hubs.len());
             let keys_and_weights: Vec<_> = hubs
                 .iter()
-                .map(|h| (h.key(), (100 - h.state.get_fullness() + 1) as u32))
+                .map(|h| (h.key(), {
+                    let (active, max) = h.state.get_stereotype_fullness(satisfied_capability.clone());
+                    u8::max(max + (max - active), 1)
+                }))
                 .collect();
 
             let weight_sum = keys_and_weights
                 .iter()
-                .fold(0, |acc: u32, (_, weight)| acc + weight);
+                .fold(0, |acc: u64, (_, weight)| acc + *weight as u64);
 
-            let selection_weight_distance: u32 = random::<u32>() % weight_sum;
-            let mut accumulated_weight: u32 = 0;
+            let selection_weight_distance: u64 = random::<u64>() % (weight_sum + 1);
+            let mut accumulated_weight: u64 = 0;
 
             let mut selected_hub_uuid: Option<Uuid> = None;
             for (uuid, weight) in keys_and_weights {
-                accumulated_weight += weight;
+                accumulated_weight += weight as u64;
                 if accumulated_weight >= selection_weight_distance {
                     selected_hub_uuid = Some(uuid.clone());
                     break;
