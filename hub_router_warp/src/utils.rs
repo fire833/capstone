@@ -1,6 +1,5 @@
 use dashmap::DashMap;
 use serde::{de::Visitor, ser::SerializeSeq, Deserializer, Serializer};
-use url::Url;
 
 use crate::{hub::Hub, HubMap};
 
