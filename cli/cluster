@@ -1,0 +1,67 @@
+#!/bin/bash
+
+check_dependeny() {
+  local executable="$1"
+
+  # If executable does not exist
+  if ! command -v "$executable"; then
+    # Print out error message to stderr
+    echo "$executable not found" >&2
+    exit 1
+  fi
+}
+
+main() {
+  check_dependeny "terraform"
+  check_dependeny "helm"
+  check_dependeny "terraform"
+
+  # Check if you are logged into cloud CLI
+  if ! az account show &> /dev/null; then
+    echo "Error: You are not logged in to Azure."
+    exit 1
+  fi
+
+  # Check if terraform.tfvars already exists
+  if test -f "${tfvars_file}"; then
+    echo "Error: $tfvars_file already exists"
+    exit 1
+  fi
+
+  tfvars_path="${HOME}/capstone/terraform/azure"
+  tfvars_file="${tfvars_path}/terraform.tfvars"
+  #cpu_limit="selenium_node_cpu_limit = 500"
+
+  # Create service and put output in a variable
+  output=$(az ad sp create-for-rbac --skip-assignment)
+
+  # Parse out the `appID`
+  if [[ $output =~ \"appId\"\:\ \"([^\"]+)\" ]]; then
+    app_id="${BASH_REMATCH[1]}"
+  else
+    echo "Error: Failed to create service principal"
+    exit 1
+  fi
+
+  # Parse out the `password`
+  if [[ $output =~ \"password\"\:\ \"([^\"]+)\" ]]; then
+    password="${BASH_REMATCH[1]}"
+  else
+    echo "Error: Failed to create service principal"
+    exit 1
+  fi
+
+  # Create terraform.tfvars
+  touch "$tfvars_file"
+
+  # Append to terraform.tfvars
+  echo "appId = \"${app_id}\"" >> "$tfvars_file"
+  echo "password = \"${password}\"" >> "$tfvars_file"
+
+  terraform apply
+
+  # Automatically configure kubectl
+  az aks get-credentials --resource-group $(terraform output -raw resource_group_name) --name $(terraform output -raw         kubernetes_cluster_name)
+}
+
+main "$@"
