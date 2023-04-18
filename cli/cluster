@@ -1,6 +1,6 @@
 #!/bin/bash
 
-check_dependeny() {
+check_dependency() {
   local executable="$1"
 
   # If executable does not exist
@@ -11,10 +11,8 @@ check_dependeny() {
   fi
 }
 
-main() {
-  check_dependeny "terraform"
-  check_dependeny "helm"
-  check_dependeny "terraform"
+create_azure() {
+  check_dependency "az"
 
   # Check if you are logged into cloud CLI
   if ! az account show &> /dev/null; then
@@ -61,7 +59,76 @@ main() {
   terraform apply
 
   # Automatically configure kubectl
-  az aks get-credentials --resource-group $(terraform output -raw resource_group_name) --name $(terraform output -raw         kubernetes_cluster_name)
+  az aks get-credentials --resource-group $(terraform output -raw resource_group_name) --name $(terraform output -raw kubernetes_cluster_name)
+}
+
+create_gcp() {
+  check_dependency "glcloud"
+
+  echo 'Note: Be sure gloud CLI has been initialized with `gcloud init`
+  and you are logged in with `gcloud auth application-default login`.'
+
+  # TODO: Get project ID
+#   output=$()
+# 	if [[ $output =~ \"project_id\"\:\ \"([^\"]+)\" ]]; then
+#     project_id="${BASH_REMATCH[1]}"
+#   else
+#     echo "Error: Failed to create service principal"
+#     exit 1
+#   fi
+# 
+#   # Create terraform.tfvars
+#   touch "$tfvars_file"
+# 
+#   # Append to terraform.tfvars
+#   echo "project_id = \"${project_id}\"" >> "$tfvars_file"
+# 
+#   # Run terraform apply
+#   terraform apply
+# }
+
+create_aws() {
+  check_dependency "aws"
+
+  echo 'Note: Ensure aws CLI has been initialized and you are logged.'
+
+  # Create terraform.tfvars
+  touch "$tfvars_file"
+
+  #TODO: create variables to be appended to terraform.tfvars
+  # Append to terraform.tfvars
+
+  terraform apply
+}
+
+usage() {
+  echo 'usage: cluster create [ azure | gcp | aws ]' && exit 1
+}
+
+main() {
+  check_dependency "terraform"
+  check_dependency "helm"
+  check_dependency "terraform"
+
+  if [[ $1 == create ]]; then
+    echo 'create'
+    case "$2" in
+      azure)
+        create_azure
+        ;;
+      gcp)
+        create_gcp
+        ;;
+      aws)
+        create_aws
+        ;;
+      *)
+        usage
+        ;;
+    esac
+  else
+    usage
+  fi
 }
 
 main "$@"
