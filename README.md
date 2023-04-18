@@ -7,7 +7,7 @@ The project provides a solution for running scalable Selenium grids on-premises 
 
 2. A set of [terraform definitions](https://developer.hashicorp.com/terraform/intro) to create a cluster on a managed kubernetes service (supporting [AWS](https://docs.aws.amazon.com/eks/latest/userguide/what-is-eks.html), [GCP](https://cloud.google.com/kubernetes-engine/docs/concepts/kubernetes-engine-overview#:~:text=GKE%20is%20a%20Google%2Dmanaged,in%2Dhouse%20cluster%20management%20system.), and [Azure](https://learn.microsoft.com/en-us/azure/aks/intro-kubernetes)), deploy the Helm chart to it, and automatically configure each provider's cluster autoscaling solution.
 
-3. The Hub Router - a spec-compliant WebDriver intermediate node which distributes tests among other selenium grids and provides a central place for observability, allowing for ergonomic operation of multiple Selenium grids.
+3. The Hub Router - a spec-compliant Selenium intermediate node which distributes tests among other Selenium grids and provides a central place for observability, allowing for ergonomic operation of multiple Selenium grids.
 
 ---
 ## Project Structure
