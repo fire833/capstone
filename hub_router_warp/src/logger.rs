@@ -3,7 +3,7 @@ use std::{sync::RwLock, time::SystemTime};
 use log::{warn, Level, Metadata, Record};
 use serde::{Deserialize, Serialize};
 
-const SEVERE_LOG_BUFFER_SIZE: usize = 3;
+const SEVERE_LOG_BUFFER_SIZE: usize = 15;
 
 static LOGGER: HubRouterLogger = HubRouterLogger;
 pub static SEVERE_LOG_STORE: RwLock<SevereLogStore> = RwLock::new(SevereLogStore {
@@ -21,7 +21,6 @@ pub struct SevereLogStore {
 
 impl SevereLogStore {
     pub fn save_log(&mut self, log: SevereLog) {
-
         // First, see if any previously stored log has the exact
         // same message. If it does, just update the time on that one.
         for saved_log in &mut self.logs {

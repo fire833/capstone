@@ -58,8 +58,14 @@ pub async fn hub_api_thread(
         .and(state_filter.clone())
         .and_then(delete_hub);
 
+    let get_config_values = warp::get()
+        .and(warp::path!("api" / "config" / String))
+        .and(warp::path::end())
+        .and(state_filter.clone())
+        .and_then(get_config);
+
     let set_config_values = warp::post()
-        .and(warp::path!("api" / String / u64))
+        .and(warp::path!("api" / "config" / String / u64))
         .and(warp::path::end())
         .and(state_filter.clone())
         .and_then(set_config);
@@ -68,7 +74,7 @@ pub async fn hub_api_thread(
         .and(warp::path!("api" / "config"))
         .and(warp::path::end())
         .and(state_filter.clone())
-        .and_then(get_config);
+        .and_then(get_entire_config);
 
     let set_router_config = warp::post()
         .and(warp::path!("api" / "config"))
@@ -114,6 +120,7 @@ pub async fn hub_api_thread(
         .or(aggregate_graphql_responses)
         .or(aggregate_status_responses)
         .or(set_config_values)
+        .or(get_config_values)
         .or(get_router_config)
         .or(set_router_config)
         .or(get_severe_logs)
@@ -153,7 +160,6 @@ async fn create_hub(
     state: Arc<HubRouterState>,
     meta: HubNameAndURL,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-
     let url = match Url::from_str(&meta.url) {
         Ok(url) => url,
         Err(err) => {
@@ -243,7 +249,7 @@ async fn set_config(
 ) -> Result<impl warp::Reply, warp::Rejection> {
     if matches!(
         key.as_str(),
-        "healthcheck_interval" | "reaper_interval" | "reaper_max_duration"
+        "healthcheck_interval" | "reaper_interval" | "reaper_max_duration" | "healthcheck_timeout"
     ) {
         let res = if let Ok(mut conf) = state.configs.write() {
             match key.as_str() {
@@ -251,6 +257,13 @@ async fn set_config(
                     conf.healthcheck_thread_interval = value;
                     Ok(warp::reply::with_status(
                         "successfully set healthcheck thread interval".to_string(),
+                        StatusCode::OK,
+                    ))
+                }
+                "healthcheck_timeout" => {
+                    conf.healthcheck_timeout = value;
+                    Ok(warp::reply::with_status(
+                        "successfully set healthcheck timeout".to_string(),
                         StatusCode::OK,
                     ))
                 }
@@ -296,7 +309,63 @@ async fn set_config(
     }
 }
 
-async fn get_config(state: Arc<HubRouterState>) -> Result<impl warp::Reply, warp::Rejection> {
+async fn get_config(
+    key: String,
+    state: Arc<HubRouterState>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    if matches!(
+        key.as_str(),
+        "healthcheck_interval" | "reaper_interval" | "reaper_max_duration" | "healthcheck_timeout"
+    ) {
+        let res = if let Ok(conf) = state.configs.read() {
+            match key.as_str() {
+                "healthcheck_interval" => Ok(warp::reply::with_status(
+                    conf.healthcheck_thread_interval.to_string(),
+                    StatusCode::OK,
+                )),
+                "healthcheck_timeout" => Ok(warp::reply::with_status(
+                    conf.healthcheck_timeout.to_string(),
+                    StatusCode::OK,
+                )),
+                "reaper_interval" => Ok(warp::reply::with_status(
+                    conf.reaper_thread_interval.to_string(),
+                    StatusCode::OK,
+                )),
+                "reaper_max_duration" => Ok(warp::reply::with_status(
+                    conf.reaper_thread_duration_max.to_string(),
+                    StatusCode::OK,
+                )),
+                _ => Ok(warp::reply::with_status(
+                    "invalid config parameter to set".into(),
+                    StatusCode::NOT_ACCEPTABLE,
+                )),
+            }
+        } else {
+            Ok(warp::reply::with_status(
+                "unable to acquire write lock for configs".into(),
+                StatusCode::NOT_ACCEPTABLE,
+            ))
+        };
+
+        if let Err(e) = state.persist() {
+            return Ok(warp::reply::with_status(
+                format!("Unable to persist new hub: {}", e),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ));
+        } else {
+            res
+        }
+    } else {
+        return Ok(warp::reply::with_status(
+            "invalid config parameter to set".into(),
+            StatusCode::NOT_ACCEPTABLE,
+        ));
+    }
+}
+
+async fn get_entire_config(
+    state: Arc<HubRouterState>,
+) -> Result<impl warp::Reply, warp::Rejection> {
     match state.configs.read() {
         Ok(conf) => Ok(warp::reply::with_status(
             warp::reply::json(&*conf),
@@ -317,13 +386,12 @@ async fn set_entire_config(
         Ok(mut conf) => {
             *conf = config;
             Ok(warp::reply::with_status("ok".into(), StatusCode::OK))
-        },
+        }
         Err(e) => Ok(warp::reply::with_status(
             format!("unable to acquire read lock for configs: {}", e),
             StatusCode::INTERNAL_SERVER_ERROR,
         )),
     };
-
 
     if let Err(e) = state.persist() {
         return Ok(warp::reply::with_status(
@@ -331,11 +399,9 @@ async fn set_entire_config(
             StatusCode::INTERNAL_SERVER_ERROR,
         ));
     }
-    
+
     res
 }
-
-
 
 async fn get_logs() -> Result<impl warp::Reply, warp::Rejection> {
     match SEVERE_LOG_STORE.read() {
@@ -343,29 +409,24 @@ async fn get_logs() -> Result<impl warp::Reply, warp::Rejection> {
             let serialized = serde_json::to_string_pretty(&*store);
             match serialized {
                 Ok(string) => {
-                    return Ok(warp::reply::with_status(
-                        string,
-                        StatusCode::OK,
-                    ));
-                },
+                    return Ok(warp::reply::with_status(string, StatusCode::OK));
+                }
                 Err(e) => {
                     return Ok(warp::reply::with_status(
                         format!("Error serializing logs: {}", e),
                         StatusCode::INTERNAL_SERVER_ERROR,
                     ));
-                },
+                }
             }
-        },
+        }
         Err(e) => {
             return Ok(warp::reply::with_status(
                 format!("Unable to acquire read lock for logs: {}", e),
                 StatusCode::INTERNAL_SERVER_ERROR,
             ));
-        },
+        }
     }
 }
-
-
 
 #[derive(Debug, Serialize, Deserialize)]
 struct AggregatedResponse {
