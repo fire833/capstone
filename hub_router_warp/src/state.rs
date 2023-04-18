@@ -54,6 +54,7 @@ pub struct HubRouterPrimitiveConfigs {
     pub reaper_thread_interval: u64,
     pub reaper_thread_duration_max: u64,
     pub healthcheck_thread_interval: u64,
+    pub healthcheck_timeout: u64,
     pub bind_port: u16,
     pub bind_ip: Ipv4Addr,
     pub api_bind_port: u16,
@@ -65,7 +66,8 @@ impl Default for HubRouterPrimitiveConfigs {
         HubRouterPrimitiveConfigs {
             reaper_thread_interval: 60,
             reaper_thread_duration_max: 30,
-            healthcheck_thread_interval: 1,
+            healthcheck_thread_interval: 10,
+            healthcheck_timeout: 8,
             bind_port: 6543,
             bind_ip: Ipv4Addr::UNSPECIFIED,
             api_bind_port: 8080,
@@ -92,7 +94,6 @@ impl HubRouterState {
         };
 
         state.hubs.alter_all(|_, v| v.clone_from_meta());
-        println!("Serialized hubs: {:#?}", state.hubs);
         warn!("Unable to fetch config from disk - falling back to default");
         state
     }

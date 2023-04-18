@@ -6,6 +6,7 @@ use crate::{
 };
 use dashmap::{mapref::multiple::RefMulti, DashMap};
 use hyper::{Body, Request, Uri};
+use log::warn;
 use rand::random;
 use std::{str::FromStr, sync::Arc};
 use tokio::time::Instant;
@@ -41,12 +42,9 @@ pub fn make_routing_decision(
     if let Some(session_id) = &maybe_session_id {
         if let Some(decision) = routing_map.get(session_id) {
             return Ok(decision.clone());
-        } else {
-            println!("Got a sessionID who hasn't been assigned anything");
         }
     }
 
-    println!("Making a routing decision for the first time!");
 
     let mut healthy_hubs_iter = state
         .hubs
@@ -85,7 +83,6 @@ pub fn make_routing_decision(
 
     match potential_hubs {
         Some(hubs) => {
-            println!("Found {} healthy hubs to route to", hubs.len());
             let keys_and_weights: Vec<_> = hubs
                 .iter()
                 .map(|h| (h.key(), {
@@ -111,7 +108,7 @@ pub fn make_routing_decision(
             }
 
             if selected_hub_uuid.is_none() {
-                eprintln!("Weighted rolling never selected an endpoint - this shouldn't happen, falling back to uniform random");
+                warn!("Weighted rolling never selected an endpoint - this shouldn't happen, falling back to uniform random");
                 return Err(RoutingError::NoDecision(
                     "Internal Error | Weighted random routing was unable to select a hub".into(),
                 ));
@@ -140,7 +137,6 @@ pub fn make_routing_decision(
                 decision_ref.value().meta.url.clone(),
                 Instant::now(),
             );
-            println!("Made decision: {:#?}", decision);
 
             // Save it if we have a session id
             if let Some(session_id) = maybe_session_id {

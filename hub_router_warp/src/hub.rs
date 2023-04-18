@@ -8,7 +8,7 @@ use std::{
 use base64::Engine;
 use hyper::{Body, Client, Method, Request};
 use serde::{Deserialize, Serialize};
-use tokio::task::JoinSet;
+use tokio::{task::JoinSet, time::timeout};
 
 use crate::{
     routing::Endpoint,
@@ -17,7 +17,7 @@ use crate::{
         HubStatusNodeSlotJSONSchema, HubStatusNodeSlotSessionJSONSchema, HubStatusOSInfoJSONSchema,
         HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema, NewSessionRequestCapability,
     },
-    state::HubRouterState,
+    state::{HubRouterState, HubRouterPrimitiveConfigs},
 };
 use log::{info, warn};
 use url::Url;
@@ -294,6 +294,7 @@ fn mock_status_schema(max_sessions: u32, num_nodes: u32, num_running: u32) -> Hu
 enum HealthcheckErr {
     DeserializError(serde_json::Error),
     HyperError(hyper::Error),
+    Timeout(String)
 }
 
 pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
@@ -303,7 +304,7 @@ pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
         let mut request_futures: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> = {
             let mut join_set: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> =
                 JoinSet::new();
-            let endpoints: Vec<(Uuid, Endpoint)> = state
+            let endpoints: Vec<(Uuid, Endpoint)> = state.clone()
                 .hubs
                 .iter()
                 .map(|h| (h.meta.uuid, h.meta.url.clone()))
@@ -320,22 +321,37 @@ pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
                     .body(hyper::body::Body::empty())
                     .unwrap();
 
+                let state_clone = state.clone();
                 join_set.spawn(async move {
-                    let response_result = client.request(request).await;
-                    match response_result {
-                        Ok(response) => {
-                            let (_parts, body) = response.into_parts();
-                            let body_bytes = hyper::body::to_bytes(body).await.unwrap();
-                            let parsed_struct_result: Result<
-                                HubStatusJSONSchema,
-                                serde_json::Error,
-                            > = serde_json::from_slice(&body_bytes);
-                            match parsed_struct_result {
-                                Ok(parsed) => (hub_uuid, Ok(parsed)),
-                                Err(e) => (hub_uuid, Err(HealthcheckErr::DeserializError(e))),
+                    let interval = match state_clone.configs.read() {
+                        Ok(conf) => conf.healthcheck_timeout,
+                        Err(e) => {
+                            warn!("RwLock was poisoned getting healthcheck timeout: {}", e);
+                            HubRouterPrimitiveConfigs::default().healthcheck_thread_interval
+                        },
+                    };
+                    let response_result_with_timeout = timeout(Duration::from_secs(interval), client.request(request)).await;
+                    match response_result_with_timeout {
+                        Ok(response_result) => {
+                            match response_result {
+                                Ok(response) => {
+                                    let (_parts, body) = response.into_parts();
+                                    let body_bytes = hyper::body::to_bytes(body).await.unwrap();
+                                    let parsed_struct_result: Result<
+                                        HubStatusJSONSchema,
+                                        serde_json::Error,
+                                    > = serde_json::from_slice(&body_bytes);
+                                    match parsed_struct_result {
+                                        Ok(parsed) => (hub_uuid, Ok(parsed)),
+                                        Err(e) => (hub_uuid, Err(HealthcheckErr::DeserializError(e))),
+                                    }
+                                }
+                                Err(err) => (hub_uuid, Err(HealthcheckErr::HyperError(err))),
                             }
-                        }
-                        Err(err) => (hub_uuid, Err(HealthcheckErr::HyperError(err))),
+                        },
+                        Err(elapsed) => {
+                            (hub_uuid, Err(HealthcheckErr::Timeout(format!("Healthcheck to {} timed out", _url))))
+                        },
                     }
                 });
             }
@@ -369,7 +385,7 @@ pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
                         }
                     }
                     Err(healthcheck_err) => {
-                        eprintln!("Got healthcheck err: {:#?}", healthcheck_err);
+                        warn!("Got healthcheck err: {:#?}", healthcheck_err);
                         match state.hubs.get_mut(&url) {
                             Some(mut hub) => {
                                 hub.fail_healthcheck();
@@ -381,7 +397,7 @@ pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
                     }
                 },
                 Err(e) => {
-                    eprintln!("Healthcheck task failed to complete: {}", e)
+                    warn!("Healthcheck task failed to complete: {}", e)
                 }
             }
         }

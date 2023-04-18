@@ -4,6 +4,7 @@
   import AddHub from "./AddHub.svelte";
   import RemoveHub from "./RemoveHub.svelte";
     import Configure from "./Configure.svelte";
+    import Logs from "./Logs.svelte";
 
   
 </script>
@@ -27,6 +28,7 @@
       <h1>Configure</h1>
       <div class="hubs-row">
         <Configure></Configure>
+        <Logs></Logs>
       </div>
     </div>
   </div>

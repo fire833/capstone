@@ -1,4 +1,5 @@
 use dashmap::DashMap;
+use log::warn;
 use serde::{de::Visitor, ser::SerializeSeq, Deserializer, Serializer};
 
 use crate::{hub::Hub, HubMap};
@@ -19,7 +20,7 @@ impl<'de> Visitor<'de> for UuidVisitor {
         match uuid::Uuid::parse_str(v) {
             Ok(uuid) => Ok(uuid),
             Err(e) => {
-                eprintln!("UUID visit errors with: {}", e);
+                warn!("UUID visit errors with: {}", e);
                 Err(E::custom(e.to_string()))
             }
         }

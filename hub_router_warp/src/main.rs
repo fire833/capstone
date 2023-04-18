@@ -1,5 +1,6 @@
 use crate::api::hub_api_thread;
 use crate::hub::{hub_healthcheck_thread, Hub};
+use crate::logger::HubRouterLogger;
 use crate::state::{HubRouterPrimitiveConfigs, HubRouterState};
 use clap::Parser;
 use dashmap::DashMap;
@@ -24,6 +25,7 @@ mod schema;
 mod state;
 mod ui;
 mod utils;
+mod logger;
 
 #[derive(clap::Parser, Debug)]
 
@@ -37,6 +39,9 @@ pub type HubMap = DashMap<Uuid, Hub>;
 
 #[tokio::main]
 async fn main() {
+
+    HubRouterLogger::init();
+
     let args = Args::parse();
 
     let state: Arc<HubRouterState> = Arc::new(HubRouterState::new_from_disk(&args.config_location));
@@ -79,23 +84,16 @@ async fn main() {
         async move {
             loop {
                 reap_interval.tick().await;
-                println!("Map: {:#?}", map_clone);
 
                 let dead_session_ids: Vec<String> = map_clone
                     .iter()
                     .filter(|entry| {
-                        println!(
-                            "Session id: {} has duration since: {:#?}",
-                            entry.key(),
-                            Instant::now().duration_since(entry.value().decision_time)
-                        );
                         Instant::now()
                             .duration_since(entry.value().decision_time)
                             .ge(&max_session_lifetime)
                     })
                     .map(|e| e.key().clone())
                     .collect();
-                println!("Culling dead sessions: {:#?}", dead_session_ids);
                 dead_session_ids.iter().for_each(|key| {
                     map_clone.remove(key);
                 });
@@ -112,8 +110,6 @@ async fn main() {
         }
     };
 
-    println!("Binding on {}", bind_addr);
-
     let server = Server::bind(&bind_addr).serve(make_service_fn(move |_con| {
         let map = sessions.clone();
         let state_clone = state.clone();
@@ -126,6 +122,6 @@ async fn main() {
 
     // And run forever...
     if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+        warn!("server error: {}", e);
     }
 }

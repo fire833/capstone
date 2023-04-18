@@ -6,6 +6,7 @@ use crate::{
 };
 use hyper::{Body, Client, Method, Request, Response};
 use lazy_static::lazy_static;
+use log::warn;
 use regex::Regex;
 use std::sync::Arc;
 
@@ -23,7 +24,7 @@ fn extract_session_id(req: &Request<Body>) -> Option<String> {
                 None => return None,
                 Some(captures) => match captures.get(1) {
                     None => {
-                        eprintln!(
+                        warn!(
                             "SessionID regexp found a match but it didn't include the sessionID"
                         );
                         return None;
@@ -170,10 +171,7 @@ async fn handle_new_session_request(
 
     let (parts, body) = response.into_parts();
     let bytes = hyper::body::to_bytes(body).await?;
-    println!(
-        "Got new session response: {}",
-        String::from_utf8_lossy(&bytes)
-    );
+
     let maybe_new_session_response: Result<NewSessionResponse, serde_json::Error> =
         serde_json::from_slice(&bytes);
     let new_session_response = match maybe_new_session_response {
@@ -218,7 +216,6 @@ pub async fn handle(
     routing_map: Arc<RoutingPrecedentMap>,
     state: Arc<HubRouterState>,
 ) -> Result<Response<Body>, hyper::Error> {
-    println!("Got req uri: {:#?}", req.uri());
     let maybe_session_id = extract_session_id(&req);
 
     let response: Result<Response<Body>, HubRouterError> = async {

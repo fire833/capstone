@@ -1,4 +1,5 @@
 use crate::hub::Hub;
+use crate::logger::SEVERE_LOG_STORE;
 use crate::routing::RoutingDecision;
 use crate::schema::Session;
 use crate::state::{HubRouterPrimitiveConfigs, HubRouterState};
@@ -76,6 +77,11 @@ pub async fn hub_api_thread(
         .and(state_filter.clone())
         .and_then(set_entire_config);
 
+    let get_severe_logs = warp::get()
+        .and(warp::path!("api" / "logs"))
+        .and(warp::path::end())
+        .and_then(get_logs);
+
     let get_sessions = warp::get()
         .and(warp::path!("api" / "sessions"))
         .and(warp::path::end())
@@ -110,6 +116,7 @@ pub async fn hub_api_thread(
         .or(set_config_values)
         .or(get_router_config)
         .or(set_router_config)
+        .or(get_severe_logs)
         .or(warp::any().map(|| {
             Ok(warp::reply::with_status(
                 reply::reply(),
@@ -146,7 +153,6 @@ async fn create_hub(
     state: Arc<HubRouterState>,
     meta: HubNameAndURL,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    println!("creating new hub...");
 
     let url = match Url::from_str(&meta.url) {
         Ok(url) => url,
@@ -328,6 +334,38 @@ async fn set_entire_config(
     
     res
 }
+
+
+
+async fn get_logs() -> Result<impl warp::Reply, warp::Rejection> {
+    match SEVERE_LOG_STORE.read() {
+        Ok(store) => {
+            let serialized = serde_json::to_string_pretty(&*store);
+            match serialized {
+                Ok(string) => {
+                    return Ok(warp::reply::with_status(
+                        string,
+                        StatusCode::OK,
+                    ));
+                },
+                Err(e) => {
+                    return Ok(warp::reply::with_status(
+                        format!("Error serializing logs: {}", e),
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                    ));
+                },
+            }
+        },
+        Err(e) => {
+            return Ok(warp::reply::with_status(
+                format!("Unable to acquire read lock for logs: {}", e),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ));
+        },
+    }
+}
+
+
 
 #[derive(Debug, Serialize, Deserialize)]
 struct AggregatedResponse {
@@ -521,7 +559,6 @@ async fn aggregate_graphql_responses(
 
     let responses = aggregate_request(validated_requests).await;
 
-    println!("About to join");
     let joined = serde_json::to_string(&responses);
 
     match joined {
