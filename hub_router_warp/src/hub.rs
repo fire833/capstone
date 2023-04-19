@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::DefaultHasher, HashSet, HashMap},
+    collections::{hash_map::DefaultHasher, HashMap, HashSet},
     hash::{Hash, Hasher},
     sync::Arc,
     time::Duration,
@@ -9,6 +9,7 @@ use base64::Engine;
 use hyper::{Body, Client, Method, Request};
 use serde::{Deserialize, Serialize};
 use tokio::{task::JoinSet, time::timeout};
+use utoipa::ToSchema;
 
 use crate::{
     routing::Endpoint,
@@ -17,14 +18,14 @@ use crate::{
         HubStatusNodeSlotJSONSchema, HubStatusNodeSlotSessionJSONSchema, HubStatusOSInfoJSONSchema,
         HubStatusStereotypeJSONSchema, HubStatusValueJSONSchema, NewSessionRequestCapability,
     },
-    state::{HubRouterState, HubRouterPrimitiveConfigs},
+    state::{HubRouterPrimitiveConfigs, HubRouterState},
 };
 use log::{info, warn};
 use url::Url;
 use uuid::Uuid;
 
 /// HubReadiness represents the current status of a Hub as a enum.
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub enum HubReadiness {
     /// not responding to /status requests
     Unhealthy,
@@ -43,7 +44,7 @@ impl Default for HubReadiness {
 /// we wish to forward tests to. This will be serialized to configuration files.
 /// To view runtime statistics and information about a Hub, this type can be cast
 /// to a HubExternal, which will serialize with all information for API consumption.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct Hub {
     /// meta is the metadata associated with a hub. This includes the
     /// endpoint, uuid, name, etc.
@@ -55,7 +56,7 @@ pub struct Hub {
 }
 
 /// Persistent metadata ssociated with a hub.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct HubMetadata {
     pub name: String,
 
@@ -69,7 +70,7 @@ pub struct HubMetadata {
 }
 
 /// Transient state associated with a hub at runtime.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct HubState {
     #[serde(skip)] // Skip for now, serde doesn't like a struct being the key
     pub fullness: HashMap<NewSessionRequestCapability, (u8, u8)>,
@@ -79,11 +80,17 @@ pub struct HubState {
 }
 
 impl HubState {
-    pub fn get_stereotype_fullness(&self, maybe_capability: Option<NewSessionRequestCapability>) -> (u8, u8) {
+    pub fn get_stereotype_fullness(
+        &self,
+        maybe_capability: Option<NewSessionRequestCapability>,
+    ) -> (u8, u8) {
         let (mut active_sessions, mut max_sessions) = (0, 0);
         let capability = match maybe_capability {
             Some(c) => c,
-            None => NewSessionRequestCapability { browserName: None, platformName: None }
+            None => NewSessionRequestCapability {
+                browserName: None,
+                platformName: None,
+            },
         };
         for (hub_capability, (active, max)) in &self.fullness {
             if capability.satisfied_by(hub_capability) {
@@ -186,13 +193,15 @@ impl Hub {
 
 /// Primary function to calculate the percentage of fullness of a hub based on its
 /// returned status API schema. Returns a value between 0 and 100.
-pub fn compute_hub_fullness(status: &HubStatusJSONSchema) -> HashMap<NewSessionRequestCapability, (u8, u8)> {
+pub fn compute_hub_fullness(
+    status: &HubStatusJSONSchema,
+) -> HashMap<NewSessionRequestCapability, (u8, u8)> {
     let mut map: HashMap<NewSessionRequestCapability, (u8, u8)> = HashMap::new();
-    
+
     for node in &status.value.nodes {
         for slot in &node.slots {
             let key: NewSessionRequestCapability = slot.stereotype.clone().into();
-            if !map.contains_key(&key) { 
+            if !map.contains_key(&key) {
                 map.insert(key.clone(), (0, 0));
             }
             match map.get(&key) {
@@ -200,10 +209,10 @@ pub fn compute_hub_fullness(status: &HubStatusJSONSchema) -> HashMap<NewSessionR
                     // total_slots += 1;
                     let active = if slot.session.is_some() { 1 } else { 0 };
                     map.insert(key, (active_slots + active, total_slots + 1));
-                },
+                }
                 None => {
                     warn!("Map was corrupted - slot which we just inserted is not available");
-                },
+                }
             }
         }
     }
@@ -294,7 +303,7 @@ fn mock_status_schema(max_sessions: u32, num_nodes: u32, num_running: u32) -> Hu
 enum HealthcheckErr {
     DeserializError(serde_json::Error),
     HyperError(hyper::Error),
-    Timeout(String)
+    Timeout(String),
 }
 
 pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
@@ -304,7 +313,8 @@ pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
         let mut request_futures: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> = {
             let mut join_set: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> =
                 JoinSet::new();
-            let endpoints: Vec<(Uuid, Endpoint)> = state.clone()
+            let endpoints: Vec<(Uuid, Endpoint)> = state
+                .clone()
                 .hubs
                 .iter()
                 .map(|h| (h.meta.uuid, h.meta.url.clone()))
@@ -328,30 +338,33 @@ pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
                         Err(e) => {
                             warn!("RwLock was poisoned getting healthcheck timeout: {}", e);
                             HubRouterPrimitiveConfigs::default().healthcheck_thread_interval
-                        },
+                        }
                     };
-                    let response_result_with_timeout = timeout(Duration::from_secs(interval), client.request(request)).await;
+                    let response_result_with_timeout =
+                        timeout(Duration::from_secs(interval), client.request(request)).await;
                     match response_result_with_timeout {
-                        Ok(response_result) => {
-                            match response_result {
-                                Ok(response) => {
-                                    let (_parts, body) = response.into_parts();
-                                    let body_bytes = hyper::body::to_bytes(body).await.unwrap();
-                                    let parsed_struct_result: Result<
-                                        HubStatusJSONSchema,
-                                        serde_json::Error,
-                                    > = serde_json::from_slice(&body_bytes);
-                                    match parsed_struct_result {
-                                        Ok(parsed) => (hub_uuid, Ok(parsed)),
-                                        Err(e) => (hub_uuid, Err(HealthcheckErr::DeserializError(e))),
-                                    }
+                        Ok(response_result) => match response_result {
+                            Ok(response) => {
+                                let (_parts, body) = response.into_parts();
+                                let body_bytes = hyper::body::to_bytes(body).await.unwrap();
+                                let parsed_struct_result: Result<
+                                    HubStatusJSONSchema,
+                                    serde_json::Error,
+                                > = serde_json::from_slice(&body_bytes);
+                                match parsed_struct_result {
+                                    Ok(parsed) => (hub_uuid, Ok(parsed)),
+                                    Err(e) => (hub_uuid, Err(HealthcheckErr::DeserializError(e))),
                                 }
-                                Err(err) => (hub_uuid, Err(HealthcheckErr::HyperError(err))),
                             }
+                            Err(err) => (hub_uuid, Err(HealthcheckErr::HyperError(err))),
                         },
-                        Err(elapsed) => {
-                            (hub_uuid, Err(HealthcheckErr::Timeout(format!("Healthcheck to {} timed out", _url))))
-                        },
+                        Err(elapsed) => (
+                            hub_uuid,
+                            Err(HealthcheckErr::Timeout(format!(
+                                "Healthcheck to {} timed out",
+                                _url
+                            ))),
+                        ),
                     }
                 });
             }

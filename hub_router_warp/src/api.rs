@@ -1,4 +1,4 @@
-use crate::hub::Hub;
+use crate::hub::{Hub, HubState, HubMetadata};
 use crate::logger::SEVERE_LOG_STORE;
 use crate::routing::RoutingDecision;
 use crate::schema::Session;
@@ -15,6 +15,7 @@ use std::time::Duration;
 use tokio::task::JoinSet;
 use tokio::time::timeout;
 use url::Url;
+use utoipa::OpenApi;
 use uuid::Uuid;
 use warp::path::Tail;
 use warp::reply::Response;
@@ -37,6 +38,11 @@ pub async fn hub_api_thread(
     info!("starting api thread");
     let state_filter = warp::any().map(move || state.clone());
     let sessions_filter = warp::any().map(move || sessions.clone());
+
+    let openapi_spec = warp::get()
+        .and(warp::path!("swagger.json"))
+        .and(warp::path::end())
+        .and_then(serve_openapi);
 
     let get_hubs = warp::get()
         .and(warp::path!("api" / "hubs"))
@@ -124,6 +130,7 @@ pub async fn hub_api_thread(
         .or(get_router_config)
         .or(set_router_config)
         .or(get_severe_logs)
+        .or(openapi_spec)
         .or(warp::any().map(|| {
             Ok(warp::reply::with_status(
                 reply::reply(),
@@ -139,6 +146,39 @@ pub async fn hub_api_thread(
     warp::serve(routes).run(bind_tuple).await;
 }
 
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        get_hubs,
+        create_hub,
+        delete_hub,
+        get_sessions,
+        set_config,
+        get_config,
+        get_entire_config,
+        set_entire_config,
+        get_logs,
+    ),
+    components(schemas(Hub, HubRouterState, HubState, HubMetadata)),
+    info(
+        description = "OpenAPI specification for the Hub Router API.",
+        title = "Hub Router API",
+        version = "0.0.1"
+    )
+)]
+struct HubRouterAPIDocs;
+
+async fn serve_openapi() -> Result<impl warp::Reply, warp::Rejection> {
+    match HubRouterAPIDocs::openapi().to_pretty_json() {
+        Ok(data) => Ok(warp::reply::with_status(data, StatusCode::OK)),
+        Err(e) => Ok(warp::reply::with_status(
+            e.to_string(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )),
+    }
+}
+
+#[utoipa::path(get, path = "/api/hubs")]
 async fn get_hubs(state: Arc<HubRouterState>) -> Result<impl warp::Reply, warp::Rejection> {
     let mut lhubs: Vec<Hub> = vec![];
 
@@ -156,6 +196,19 @@ struct HubNameAndURL {
     url: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/hubs",
+    responses(
+        (status = 200, description = "Registered Hub successfully"),
+        (status = INTERNAL_SERVER_ERROR, description = "Unable to persist Hub"),
+        (status = NOT_ACCEPTABLE, description = "Hub already registered"),
+        (status = BAD_REQUEST, description = "Hub URL invalid")
+    ),
+    params(
+        ("hub" = Hub, description = "Hub to insert"),
+    )
+)]
 async fn create_hub(
     state: Arc<HubRouterState>,
     meta: HubNameAndURL,
@@ -192,6 +245,17 @@ async fn create_hub(
     ));
 }
 
+#[utoipa::path(
+    delete, 
+    path = "/api/hubs/{uuid}", 
+    responses(
+        (status = 200, description = "Deleted Hub successfully"),
+        (status = INTERNAL_SERVER_ERROR, description = "Unable to persist removed Hub"),
+    ),
+    params(
+        ("uuid" = Hub, Path, description = "UUID of Hub to remove."),
+    )
+)]
 async fn delete_hub(
     uuid: Uuid,
     state: Arc<HubRouterState>,
@@ -199,7 +263,7 @@ async fn delete_hub(
     state.hubs.remove(&uuid);
     if let Err(e) = state.persist() {
         return Ok(warp::reply::with_status(
-            format!("Unable to persist new hub: {}", e),
+            format!("Unable to persist removed hub: {}", e),
             StatusCode::INTERNAL_SERVER_ERROR,
         ));
     }
@@ -210,6 +274,14 @@ async fn delete_hub(
     ));
 }
 
+#[utoipa::path(
+    get, 
+    path = "/api/sessions",
+    responses(
+        (status = 200, description = "Returned current active sessions"),
+    ),
+    params()
+)]
 async fn get_sessions(
     sessions: Arc<DashMap<String, RoutingDecision>>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
@@ -242,6 +314,16 @@ async fn serve_ui(tail: Tail) -> Result<impl warp::Reply, warp::Rejection> {
     }
 }
 
+#[utoipa::path(post, 
+    path = "/api/config/{key}/{value}",
+    responses(
+        (status = 200, description = "Set config value."),
+    ),
+    params(
+        ("key" = String, Path, description = "Key of config value to be set."),
+        ("value" = u64, Path, description = "Value of config value to be set."),
+    )
+)]
 async fn set_config(
     key: String,
     value: u64,
@@ -309,6 +391,15 @@ async fn set_config(
     }
 }
 
+#[utoipa::path(get, 
+    path = "/api/config/{key}",
+    responses(
+        (status = 200, description = "Retrieved config value."),
+    ),
+    params(
+        ("key" = String, Path, description = "Key of config value to be retrieved."),
+    )
+)]
 async fn get_config(
     key: String,
     state: Arc<HubRouterState>,
@@ -363,6 +454,13 @@ async fn get_config(
     }
 }
 
+#[utoipa::path(get, 
+    path = "/api/config",
+    responses(
+        (status = 200, description = "Retrieved config."),
+    ),
+    params()
+)]
 async fn get_entire_config(
     state: Arc<HubRouterState>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
@@ -378,6 +476,15 @@ async fn get_entire_config(
     }
 }
 
+#[utoipa::path(post, 
+    path = "/api/config",
+    responses(
+        (status = 200, description = "Updated HubRouterState config object"),
+    ),
+    params(
+        ("config" = HubRouterState, description = "A copy of the HubRouterState object that you wish to persist to disk."),
+    )
+)]
 async fn set_entire_config(
     config: HubRouterPrimitiveConfigs,
     state: Arc<HubRouterState>,
@@ -403,6 +510,12 @@ async fn set_entire_config(
     res
 }
 
+#[utoipa::path(get, 
+    path = "/api/logs",
+    responses(
+        (status = 200, description = "Returned all current, deduped warn/error logs for hub_router"),
+    ),
+)]
 async fn get_logs() -> Result<impl warp::Reply, warp::Rejection> {
     match SEVERE_LOG_STORE.read() {
         Ok(store) => {

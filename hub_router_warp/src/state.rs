@@ -7,6 +7,7 @@ use std::{
     net::Ipv4Addr,
     sync::RwLock,
 };
+use utoipa::ToSchema;
 
 #[derive(Debug, Clone)]
 enum PersistPath {
@@ -35,8 +36,9 @@ impl Default for PersistPath {
 /// The most notable data within this structure are the list of registered
 /// Hubs to route traffic to (this includes runtime state including the session
 /// fullness, but this data is not writeable via the API and not persisted to
-/// disk). It also includes values for
-#[derive(Serialize, Deserialize, Debug, Default)]
+/// disk). It also includes values for repaper/healthcheck threads and other API
+/// binding information.
+#[derive(Serialize, Deserialize, Debug, Default, ToSchema)]
 pub struct HubRouterState {
     #[serde(serialize_with = "crate::utils::serialize_dashmap")]
     #[serde(deserialize_with = "crate::utils::deserialize_dashmap")]
@@ -49,7 +51,7 @@ pub struct HubRouterState {
     persist_file: PersistPath,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, ToSchema)]
 pub struct HubRouterPrimitiveConfigs {
     pub reaper_thread_interval: u64,
     pub reaper_thread_duration_max: u64,
