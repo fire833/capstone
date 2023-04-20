@@ -4,48 +4,59 @@ check_dependency() {
   local executable="$1"
 
   # If executable does not exist
-  if ! command -v "$executable"; then
+  if ! command -v "$executable" &> /dev/null; then
     # Print out error message to stderr
     echo "$executable not found" >&2
     exit 1
   fi
 }
 
+# Check if basename is correct.
+check_dir() {
+  local dir="$1"
+  local path
+  path=$(pwd)
+
+  # Get basename
+  local current_dir=${path##*/}
+  if [[ $current_dir != "$dir" ]]; then
+    echo "Error: Must be run in $dir directory." >&2
+    exit 1
+  fi
+}
+
 create_azure() {
+  check_dir "azure"
   check_dependency "az"
 
   # Check if you are logged into cloud CLI
   if ! az account show &> /dev/null; then
-    echo "Error: You are not logged in to Azure."
+    echo "Error: You are not logged in to Azure." >&2
     exit 1
   fi
 
-  # Check if terraform.tfvars already exists
+  # If terraform.tfvars already exists
   if test -f "${tfvars_file}"; then
-    echo "Error: $tfvars_file already exists"
-    exit 1
+    echo "Note: $tfvars_file already exists"
+    return
   fi
 
-  tfvars_path="${HOME}/capstone/terraform/azure"
-  tfvars_file="${tfvars_path}/terraform.tfvars"
-  #cpu_limit="selenium_node_cpu_limit = 500"
-
-  # Create service and put output in a variable
-  output=$(az ad sp create-for-rbac --skip-assignment)
+  # Create service and direct output to a variable
+  output=$(az ad sp create-for-rbac --skip-assignment 2>/dev/null)
 
   # Parse out the `appID`
   if [[ $output =~ \"appId\"\:\ \"([^\"]+)\" ]]; then
-    app_id="${BASH_REMATCH[1]}"
+    local app_id="${BASH_REMATCH[1]}"
   else
-    echo "Error: Failed to create service principal"
+    echo "Error: Failed to create service principal." >&2
     exit 1
   fi
 
   # Parse out the `password`
   if [[ $output =~ \"password\"\:\ \"([^\"]+)\" ]]; then
-    password="${BASH_REMATCH[1]}"
+    local password="${BASH_REMATCH[1]}"
   else
-    echo "Error: Failed to create service principal"
+    echo "Error: Failed to create service principal." >&2
     exit 1
   fi
 
@@ -53,56 +64,62 @@ create_azure() {
   touch "$tfvars_file"
 
   # Append to terraform.tfvars
-  echo "appId = \"${app_id}\"" >> "$tfvars_file"
-  echo "password = \"${password}\"" >> "$tfvars_file"
-
-  terraform apply
-
-  # Automatically configure kubectl
-  az aks get-credentials --resource-group $(terraform output -raw resource_group_name) --name $(terraform output -raw kubernetes_cluster_name)
+  echo 'Appending to ./terraform.tfvars:'
+  echo "appId = \"${app_id}\"" | tee -a "$tfvars_file"
+  echo "password = \"${password}\"" | tee -a "$tfvars_file"
 }
 
 create_gcp() {
-  check_dependency "glcloud"
+  check_dir "gcp"
+  check_dependency "gcloud"
 
-  echo 'Note: Be sure gloud CLI has been initialized with `gcloud init`
-  and you are logged in with `gcloud auth application-default login`.'
+  echo 'Note: Be sure gloud CLI has been initialized with `gcloud init` and you are logged in with `gcloud auth application-default login`.'
 
-  # TODO: Get project ID
-#   output=$()
-# 	if [[ $output =~ \"project_id\"\:\ \"([^\"]+)\" ]]; then
-#     project_id="${BASH_REMATCH[1]}"
-#   else
-#     echo "Error: Failed to create service principal"
-#     exit 1
-#   fi
-# 
-#   # Create terraform.tfvars
-#   touch "$tfvars_file"
-# 
-#   # Append to terraform.tfvars
-#   echo "project_id = \"${project_id}\"" >> "$tfvars_file"
-# 
-#   # Run terraform apply
-#   terraform apply
-# }
+  # Keep prompting for project ID until user enters input
+  while true; do
+    read -rp "Enter project_id: " project_id
+    echo "you entered: $project_id"
+      if [[ -z "$project_id" ]]; then
+        echo "Error: Must enter project_id." >&2
+      else
+        break
+      fi
+  done
 
-create_aws() {
-  check_dependency "aws"
-
-  echo 'Note: Ensure aws CLI has been initialized and you are logged.'
+  # If terraform.tfvars already exists, then return early
+  if test -f "${tfvars_file}"; then
+    echo "Note: $tfvars_file already exists."
+    return
+  fi
 
   # Create terraform.tfvars
   touch "$tfvars_file"
 
-  #TODO: create variables to be appended to terraform.tfvars
-  # Append to terraform.tfvars
+  # Append `project_id` to terraform.tfvars
+  echo 'Appending to ./terraform.tfvars:'
+  echo "project_id = \"${project_id}\"" | tee -a "$tfvars_file"
+}
 
-  terraform apply
+create_aws() {
+  check_dir "aws"
+  check_dependency "aws"
+
+  if [[ -z "$AWS_ACCESS_KEY_ID" ]]; then
+    echo 'Error: $AWS_ACCESS_KEY_ID is not set' >&2
+    exit 1
+  fi
+
+  if [[ -z "$AWS_SECRET_ACCESS_KEY" ]]; then
+    echo 'Error: $AWS_SECRET_ACCESS_KEY is not set' >&2
+    exit 1
+  fi
+
+  echo 'Note: Ensure aws CLI has been initialized and you are logged.'
 }
 
 usage() {
-  echo 'usage: cluster create [ azure | gcp | aws ]' && exit 1
+  echo -e "Usage: cluster create provider\n\tprovider: azure, gcp, or aws" >&2
+  exit 1
 }
 
 main() {
@@ -110,8 +127,11 @@ main() {
   check_dependency "helm"
   check_dependency "terraform"
 
+  # Path to terraform.tfvars file.
+  # Note: This global variable is used by provider functions.
+  tfvars_file="./terraform.tfvars"
+
   if [[ $1 == create ]]; then
-    echo 'create'
     case "$2" in
       azure)
         create_azure
@@ -128,6 +148,16 @@ main() {
     esac
   else
     usage
+  fi
+
+  echo 'Running `terraform apply`'
+  terraform apply
+
+  # If azure cloud provider and `terraform apply` was successful, then
+  if [[ $2 == azure && $? -eq 0 ]]; then
+    # automatically configure kubectl
+    echo 'Configuring kubectl'
+    az aks get-credentials --resource-group "$(terraform output -raw resource_group_name)" --name "$(terraform output -raw kubernetes_cluster_name)"
   fi
 }
 
