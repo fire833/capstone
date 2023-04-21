@@ -3,7 +3,7 @@ entries:
   selenium-grid-cluster:
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-04-20T20:59:02.042690495-05:00"
+    created: "2023-04-20T21:02:15.186098424-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -13,7 +13,7 @@ entries:
       version: 4.1.1
     description: Helm chart for deploying a dynamically-scalable Selenium Grid cluster
       and associated infrastructure.
-    digest: fb38dc8769e268af10e2ae6e00273bc9772cce47654672818f3de7dcadc76f67
+    digest: d1ebb7d9b43751ecb0c029652de588203c69a26ec38f0a1b010262bd81dfb273
     maintainers:
     - email: kendall.tauser@ou.edu
       name: Kendall Tauser
@@ -26,7 +26,7 @@ entries:
     version: 0.6.2
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-04-20T20:59:02.032459141-05:00"
+    created: "2023-04-20T21:02:15.171761268-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -49,7 +49,7 @@ entries:
     version: 0.6.1
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-04-20T20:59:02.023767877-05:00"
+    created: "2023-04-20T21:02:15.156131047-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -72,7 +72,7 @@ entries:
     version: 0.6.0
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-04-20T20:59:02.015317615-05:00"
+    created: "2023-04-20T21:02:15.145337499-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -95,7 +95,7 @@ entries:
     version: 0.5.0
   - apiVersion: v2
     appVersion: 4.8.0
-    created: "2023-04-20T20:59:02.005374793-05:00"
+    created: "2023-04-20T21:02:15.123100353-05:00"
     dependencies:
     - name: prometheus
       repository: https://prometheus-community.github.io/helm-charts
@@ -116,4 +116,4 @@ entries:
     urls:
     - selenium-grid-cluster-0.4.0.tgz
     version: 0.4.0
-generated: "2023-04-20T20:59:01.995635622-05:00"
+generated: "2023-04-20T21:02:15.10210151-05:00"
