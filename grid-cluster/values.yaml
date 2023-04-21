@@ -109,10 +109,10 @@ hub:
   resources:
     limits:
       # -- Specify the maximum memory for the hub instance within the cluster.
-      memory: "1Gi"
+      memory: "2Gi"
   
       # -- Specify the maximum cpu for the hub instance within the cluster.
-      cpu: "1000m"
+      cpu: "2000m"
 
 cloud_specific_config:
 
