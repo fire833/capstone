@@ -87,7 +87,7 @@ pub fn make_routing_decision(
                 .iter()
                 .map(|h| (h.key(), {
                     let (active, max) = h.state.get_stereotype_fullness(satisfied_capability.clone());
-                    u8::max(max + (max - active), 1)
+                    u8::max(2 * max - active, 1)
                 }))
                 .collect();
 
