@@ -40,6 +40,11 @@
         return flat;
     }
 
+    function clip_url(name: string): string {
+        if (name.length < 24) return name;
+        return name.substring(0, 16) + "..." + name.substring(name.length - 8);
+    }
+
     import Chrome from "./assets/chrome.191aefd5192c43508fa5f86da6808929.svelte";
     import Edge from "./assets/edge.d2a278165ff8e7dcc4af17246954a0e1.svelte";
     import Firefox from "./assets/firefox.efda58979e042bab7c689eab277b5a5d.svelte";
@@ -66,10 +71,10 @@
     ) % 360}, {(Math.abs(hashCode(hub_data.router_hub_state.meta.name)) % 20) +
         50}%, 72%)"
 >
-    <div style="display: flex; flex-direction: column; align-items: center;">
+    <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
         <h1 class="notranslate">{hub_data.router_hub_state.meta.name}</h1>
         <p style="color: var(--foreground-secondary)">
-            {hub_data.router_hub_state.meta.url}
+            {clip_url(hub_data.router_hub_state.meta.url)}
         </p>
     </div>
 
