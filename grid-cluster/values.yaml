@@ -92,7 +92,7 @@ nodes:
       memory: "1Gi"
 
       # -- Specify the maximum cpu for every selenium node within the cluster.
-      cpu: "250m"
+      cpu: "1000m"
 
 # -- Hub management options for the hub node managed by this chart. 
 hub:
@@ -112,7 +112,7 @@ hub:
       memory: "1Gi"
   
       # -- Specify the maximum cpu for the hub instance within the cluster.
-      cpu: "250m"
+      cpu: "1000m"
 
 cloud_specific_config:
 
