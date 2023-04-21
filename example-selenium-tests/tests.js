@@ -37,6 +37,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 };
 exports.__esModule = true;
 var selenium_webdriver_1 = require("selenium-webdriver");
+var browserMap = {};
 function runTest(i) {
     return __awaiter(this, void 0, void 0, function () {
         var browser, driver, title;
@@ -45,7 +46,6 @@ function runTest(i) {
                 case 0:
                     browser = (function () {
                         var rand = Math.random();
-                        return "chrome";
                         if (rand <= 0.3)
                             return "chrome";
                         if (rand <= 0.6)
@@ -53,6 +53,7 @@ function runTest(i) {
                         else
                             return "firefox";
                     })();
+                    browserMap[i] = browser;
                     return [4 /*yield*/, new selenium_webdriver_1.Builder().forBrowser(browser).build()];
                 case 1:
                     driver = _a.sent();
@@ -62,15 +63,9 @@ function runTest(i) {
                     return [4 /*yield*/, driver.getTitle()];
                 case 3:
                     title = _a.sent();
-                    console.log("Ran test I guess " + title);
-                    //	await new Promise(resolve => setTimeout(resolve, 3000));
-                    //    let file = await driver.takeScreenshot();
-                    //	writeFileSync(`./ss/ss-${i}.png`, Buffer.from(file, 'base64'));
+                    console.log("Ran test" + title);
                     return [4 /*yield*/, driver.quit()];
                 case 4:
-                    //	await new Promise(resolve => setTimeout(resolve, 3000));
-                    //    let file = await driver.takeScreenshot();
-                    //	writeFileSync(`./ss/ss-${i}.png`, Buffer.from(file, 'base64'));
                     _a.sent();
                     return [2 /*return*/];
             }
@@ -78,13 +73,64 @@ function runTest(i) {
     });
 }
 console.log("Don't forget to set SELENIUM_REMOTE_URL, it is currently set to: " + process.env['SELENIUM_REMOTE_URL']);
-var _loop_1 = function (i) {
-    runTest(i).then(function (res) {
-        console.log("completed test");
-    })["catch"](function (err) {
-        console.error("Error in test " + i + ":", err);
+var num_success = 0;
+var num_fail = 0;
+var NUM_TESTS = 1000;
+function enqueue_tests() {
+    return __awaiter(this, void 0, void 0, function () {
+        var promises, _loop_1, i;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    promises = [];
+                    _loop_1 = function (i) {
+                        return __generator(this, function (_b) {
+                            switch (_b.label) {
+                                case 0:
+                                    if (!(i % 100 === 0)) return [3 /*break*/, 2];
+                                    return [4 /*yield*/, new Promise(function (resolve, _) { return setTimeout(resolve, 6000); })];
+                                case 1:
+                                    _b.sent();
+                                    _b.label = 2;
+                                case 2: return [4 /*yield*/, new Promise(function (resolve, _) { return setTimeout(resolve, 20); })];
+                                case 3:
+                                    _b.sent();
+                                    promises.push(runTest(i).then(function (res) {
+                                        console.log("completed test");
+                                        num_success++;
+                                    })["catch"](function (err) {
+                                        console.error("Error in " + browserMap[i] + " test " + i + ":", err);
+                                        num_fail++;
+                                    }));
+                                    return [2 /*return*/];
+                            }
+                        });
+                    };
+                    i = 0;
+                    _a.label = 1;
+                case 1:
+                    if (!(i < NUM_TESTS)) return [3 /*break*/, 4];
+                    return [5 /*yield**/, _loop_1(i)];
+                case 2:
+                    _a.sent();
+                    _a.label = 3;
+                case 3:
+                    i++;
+                    return [3 /*break*/, 1];
+                case 4: return [2 /*return*/, promises];
+            }
+        });
     });
-};
-for (var i = 0; i < 30; i++) {
-    _loop_1(i);
 }
+enqueue_tests().then(function (promises) { return __awaiter(void 0, void 0, void 0, function () {
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0: return [4 /*yield*/, Promise.all(promises).then(function (e) {
+                    console.log("Success: " + num_success + ", Fail: " + num_fail + ", Percent: " + num_success / NUM_TESTS * 100);
+                })];
+            case 1:
+                _a.sent();
+                return [2 /*return*/];
+        }
+    });
+}); });
