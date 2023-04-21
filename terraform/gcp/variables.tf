@@ -16,7 +16,7 @@ variable "node_count" {
 
 variable "node_type" {
   description = "Specify the GCP VM type for nodes in the initial node pool"
-  default = "e2-medium"
+  default = "e2-highcpu-8"
 }
 
 variable "cluster_name" {
@@ -31,38 +31,38 @@ variable "cluster_version" {
 
 variable "base_autoscaling_cpu" {
   description = "Specify the number of CPU cores which you expect the default node pool to consume, otherwise the default node pool utilization will count against the autoscaling limits"
-  default = 4
+  default = 6
 }
 
 variable "base_autoscaling_ram" {
   description = "Specify the gigabytes of RAM which you expect the default node pool to consume, otherwise the default node pool utilization will count against the autoscaling limits"
-  default = 4
+  default = 6
 }
 
 variable "max_chrome_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
-  default = 10
+  default = 20
 }
 
 
 variable "max_firefox_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
-  default = 10
+  default = 20
 }
 
 variable "max_edge_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
-  default = 10
+  default = 20
 }
 
 variable "selenium_node_cpu_limit" {
   description = "Specify how many milli CPU cores a selenium node may use."
-  default = 900
+  default = 1000
 }
 
 variable "selenium_node_ram_limit" {
   description = "Specify how many megabytes of RAM a selenium node may use."
-  default = 750
+  default = 1000
 }
 
 

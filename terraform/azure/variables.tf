@@ -21,7 +21,7 @@ variable "cluster_region" {
 
 variable "vm_size" {
   description = "Specify the azure VM size to create when provisioning VMs"
-  default = "Standard_F4s_v2"
+  default = "Standard_F8s_v2"
 }
 
 variable "initial_nodes" {
@@ -31,7 +31,7 @@ variable "initial_nodes" {
 
 variable "max_nodes" {
   description = "Specify the maximum number of nodes which the cluster may scale to"
-  default = 4
+  default = 8
 }
 variable "min_nodes" {
   description = "Specify the minimum number of nodes which the cluster may scale down to"
@@ -41,7 +41,7 @@ variable "min_nodes" {
 
 variable "max_chrome_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
-  default = 10
+  default = 20
 }
 
 variable "min_chrome_nodes" {
@@ -51,7 +51,7 @@ variable "min_chrome_nodes" {
 
 variable "max_firefox_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
-  default = 10
+  default = 20
 }
 
 variable "min_firefox_nodes" {
@@ -61,7 +61,7 @@ variable "min_firefox_nodes" {
 
 variable "max_edge_nodes" {
   description = "Specify the maximum number of selenium nodes which can be provisioned"
-  default = 10
+  default = 20
 }
 
 variable "min_edge_nodes" {
@@ -71,12 +71,12 @@ variable "min_edge_nodes" {
 
 variable "selenium_node_cpu_limit" {
   description = "Specify how many milli CPU cores a selenium node may use."
-  default = 900
+  default = 1000
 }
 
 variable "selenium_node_ram_limit" {
   description = "Specify how many megabytes of RAM a selenium node may use."
-  default = 750
+  default = 1000
 }
 
 variable "helm_values" {

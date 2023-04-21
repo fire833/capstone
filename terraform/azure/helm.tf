@@ -13,8 +13,6 @@ resource "helm_release" "grid-chart-release" {
   repository = "https://fire833.github.io/capstone/"
   chart = "selenium-grid-cluster"
 
-  version = "0.6.0"
-
   depends_on = [
     azurerm_kubernetes_cluster.grid-cluster,
     azurerm_public_ip.lb-ip
