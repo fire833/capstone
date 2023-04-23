@@ -1,3 +1,5 @@
+///! Functions for handling specific Selenium endpoints
+
 use crate::{
     error::HubRouterError,
     routing::{apply_routing_decision, make_routing_decision, RoutingPrecedentMap},
@@ -10,6 +12,8 @@ use log::warn;
 use regex::Regex;
 use std::sync::Arc;
 
+
+/// Inspect an HTTP request and parse out a Selenium session ID, if it exists
 fn extract_session_id(req: &Request<Body>) -> Option<String> {
     lazy_static! {
         static ref SESSION_ID_REGEXP: Regex = Regex::new(r"^/session/([^/]*)(/|\z)").unwrap();
@@ -65,6 +69,8 @@ fn test_extract_session_id() {
     );
 }
 
+
+/// Extract browser/operating system requests from a request, if they exist
 pub async fn extract_capabilities_from_new_session_request(
     request: Request<Body>,
 ) -> Result<(Vec<NewSessionRequestCapability>, Request<Body>), HubRouterError> {
@@ -78,6 +84,9 @@ pub async fn extract_capabilities_from_new_session_request(
     return Ok((possible_requests, reconstructed_request));
 }
 
+
+/// Performs capability processing as specified in the WebDriver specification: https://www.w3.org/TR/webdriver/#processing-capabilities
+/// Only respects browsers/operating systems
 fn generate_possible_capabilities(
     capability_request: NewSessionRequestBody,
 ) -> Vec<NewSessionRequestCapability> {
@@ -152,6 +161,12 @@ fn test_delete_session() {
     assert_eq!(is_delete_session(&t3), false);
 }
 
+
+/// Handle a new session request.
+/// Requires special logic as this is when a Selenium session is assigned an ID.
+/// A response to a new session request contains the ID, which we need to assign
+/// to the same hub which we sent the new session request to, so we must hold
+/// on to the response object and parse it before sending it back to the test
 async fn handle_new_session_request(
     mut req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
@@ -185,6 +200,9 @@ async fn handle_new_session_request(
     Ok(hyper::Response::from_parts(parts, hyper::Body::from(bytes)))
 }
 
+
+/// A general handler for all other endpoints, simply forwards a test to the Hub which its session ID
+/// is associated with, or a random one if no precedent exists.
 async fn forward_request(
     mut req: Request<Body>,
     _routing_map: Arc<RoutingPrecedentMap>,
@@ -198,6 +216,9 @@ async fn forward_request(
     HubRouterError::wrap_err(client.request(req).await)
 }
 
+
+/// When a session is finished, we should remove it from our routing precedent map,
+/// so we need a custom handler to handle this
 async fn handle_delete_session_request(
     req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
@@ -211,6 +232,11 @@ async fn handle_delete_session_request(
 
 /// Primary handler function for forwarding requests onto downstream Hubs.
 /// This function will be called by the primary listener for forwarding requests.
+/// 
+/// New session requests and session deletion requests must be handled specially,
+/// so that we can update our routing precedent map accordingly.
+/// All other requests will be forwarded to its associated hub, or a random one
+/// if no association exists in the routing precedent map
 pub async fn handle(
     req: Request<Body>,
     routing_map: Arc<RoutingPrecedentMap>,
@@ -220,7 +246,6 @@ pub async fn handle(
 
     let response: Result<Response<Body>, HubRouterError> = async {
         if is_request_new_session(&req) {
-            // handle new sessions differently
             return handle_new_session_request(req, routing_map, state).await;
         } else if is_delete_session(&req) && maybe_session_id.is_some() {
             return handle_delete_session_request(req, routing_map, state).await;
@@ -229,7 +254,6 @@ pub async fn handle(
     }
     .await;
 
-    // TODO: General Error Handling
     match response {
         Ok(response) => Ok(response),
         Err(e) => Ok(Response::builder()

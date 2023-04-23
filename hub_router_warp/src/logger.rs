@@ -1,3 +1,6 @@
+//! A logging provider for the Hub Router which saves all warnings
+//! errors, which are made available from an API endpoint
+
 use std::{sync::RwLock, time::SystemTime};
 
 use log::{warn, Level, Metadata, Record};

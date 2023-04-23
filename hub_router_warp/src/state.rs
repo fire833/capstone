@@ -1,3 +1,6 @@
+//! A single globally shared struct for the Hub Router's state,
+//! including configuration and the state of all of its registered hubs
+
 use crate::HubMap;
 use log::warn;
 use serde::{Deserialize, Serialize};
@@ -124,6 +127,8 @@ impl HubRouterState {
         }
     }
 
+    /// Write the configuration file to disk.
+    /// Called when any element of the state is updated from the API
     pub fn persist(&self) -> Result<(), String> {
         let serialized = match serde_json::to_string_pretty(self) {
             Ok(str) => str,

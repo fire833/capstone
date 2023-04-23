@@ -1,3 +1,5 @@
+//! Contains logic for making and remembering routing decisions
+
 use crate::{
     error::{HubRouterError, RoutingError},
     hub::{Hub, HubReadiness},
@@ -13,9 +15,16 @@ use tokio::time::Instant;
 use url::Url;
 use uuid::Uuid;
 
+/// A map from Selenium session IDs to URLs, to remember previous routing decisions,
+/// and forward later requests for that session to the same hub.
+/// We specifically associate a test with a particular URL, instead of a hub,
+/// to be resilient against hub de-registration, so that tests which were routed
+/// to the de-registered hub will continue to be routed there, until they are complete
 pub type RoutingPrecedentMap = DashMap<String, RoutingDecision>;
 pub type Endpoint = Url;
 
+/// A decision made by the routing algorithm, which we associate with a particular Selenium
+/// session ID to ensure all requests for that session are sent to the same hub.
 #[derive(Debug, Clone)]
 pub struct RoutingDecision {
     pub hub_uuid: Uuid,
@@ -33,19 +42,25 @@ impl RoutingDecision {
     }
 }
 
+
+// For a given request, return a routing decision containing a Hub's endpoint to send that test to.
+// If a decision has been previously made for the Selenium session, that will be returned instead.
 pub fn make_routing_decision(
     maybe_session_id: Option<String>,
     optional_requested_capabilities: Option<Vec<NewSessionRequestCapability>>,
     routing_map: Arc<RoutingPrecedentMap>,
     state: Arc<HubRouterState>,
 ) -> Result<RoutingDecision, RoutingError> {
+
+    // If the request has a session ID and we've previously made a routing decision for it,
+    // return that previous decision
     if let Some(session_id) = &maybe_session_id {
         if let Some(decision) = routing_map.get(session_id) {
             return Ok(decision.clone());
         }
     }
 
-
+    // Filter out unhealthy hubs, so that we only consider healthy hubs to send tests to
     let mut healthy_hubs_iter = state
         .hubs
         .iter()
@@ -60,7 +75,8 @@ pub fn make_routing_decision(
 
     let healthy_hubs: Vec<_> = healthy_hubs_iter.collect();
 
-    // get a list of hubs which satisfy the request
+    // Filter the list of healthy hubs to only those who can satisfy the request,
+    // meaning they have a node which can support the requested browser/OS pair
     let (potential_hubs, satisfied_capability): (Option<Vec<&RefMulti<Uuid, Hub>>>, Option<NewSessionRequestCapability>) = match &optional_requested_capabilities {
         None => (Some(healthy_hubs.iter().collect()), None),
         Some(requested_capabilities) => {
@@ -82,7 +98,22 @@ pub fn make_routing_decision(
     };
 
     match potential_hubs {
+        // If no hubs can satisfy the request, reject the test and return an error
+        None => {
+            return Err(RoutingError::UnableToSatisfyCapabilities(String::from(
+                format!(
+                    "No hubs could satisfy capabilities: {:?}",
+                    &optional_requested_capabilities
+                ),
+            )));
+        }
+
+        // Otherwise, compute the weights for each hub,
+        // and make a weighted random routing decision 
         Some(hubs) => {
+            // Compute the weights for each hub.
+            // A hub's weight is the number of nodes it has which can run that test,
+            // plus the number of these nodes which are empty, so empty nodes count double.
             let keys_and_weights: Vec<_> = hubs
                 .iter()
                 .map(|h| (h.key(), {
@@ -91,6 +122,10 @@ pub fn make_routing_decision(
                 }))
                 .collect();
 
+            // To select a weighted random hub, we compute the total sum of weights,
+            // pick a random number from 0 to that weight sum,
+            // and skip hubs until the cumulative weight of skipped hubs exceeds
+            // the random number.
             let weight_sum = keys_and_weights
                 .iter()
                 .fold(0, |acc: u64, (_, weight)| acc + *weight as u64);
@@ -144,17 +179,12 @@ pub fn make_routing_decision(
             }
             return Ok(decision);
         }
-        None => {
-            return Err(RoutingError::UnableToSatisfyCapabilities(String::from(
-                format!(
-                    "No hubs could satisfy capabilities: {:?}",
-                    &optional_requested_capabilities
-                ),
-            )));
-        }
     }
 }
 
+
+/// Re-write a HTTP request's destination to point at the endpoint
+/// in the given routing decision
 pub fn apply_routing_decision(
     req: &mut Request<Body>,
     endpoint: &Endpoint,

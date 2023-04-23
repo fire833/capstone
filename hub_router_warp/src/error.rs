@@ -1,4 +1,8 @@
+///! An error wrapper for the Hub Router, so that errors from libraries which
+///! we use can be `into`'d and homogenized to a single error type, which
+///! we can back to a test for nicely formatted errors when things go wrong.
 use std::fmt::Debug;
+
 
 #[derive(Debug)]
 pub enum RoutingError {

@@ -1,3 +1,7 @@
+//! The internal representation for a Selenium hub which
+//! is registered with the Hub Router
+
+
 use std::{
     collections::{hash_map::DefaultHasher, HashMap, HashSet},
     hash::{Hash, Hasher},
@@ -27,10 +31,10 @@ use uuid::Uuid;
 /// HubReadiness represents the current status of a Hub as a enum.
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub enum HubReadiness {
-    /// not responding to /status requests
+    /// not responding to /status requests, or responds to /status but has no nodes
     Unhealthy,
 
-    /// response to /status with ready: true
+    /// response to /status with at least a single healthy node
     Ready,
 }
 
@@ -80,6 +84,11 @@ pub struct HubState {
 }
 
 impl HubState {
+
+    /// Compute a tuple of (currently running sessions, maximum capacity)
+    /// for a particular browser/OS request.
+    /// Dividing these numbers gives the percent fullness for running 
+    /// a particular browser/OS test on this hub.
     pub fn get_stereotype_fullness(
         &self,
         maybe_capability: Option<NewSessionRequestCapability>,
@@ -174,6 +183,8 @@ impl Hub {
         self.can_satisfy_capability(capability) && self.state.readiness == HubReadiness::Ready
     }
 
+    /// Called when a hub fails a healthcheck.
+    /// If a hub fails 3 consecutive healthchecks, it will be marked unhealthy
     pub fn fail_healthcheck(&mut self) -> HubReadiness {
         if self.state.consecutive_healthcheck_failures < u8::MAX {
             self.state.consecutive_healthcheck_failures += 1;
@@ -184,6 +195,8 @@ impl Hub {
         return self.state.readiness;
     }
 
+    /// Called when a hub succeeds a healthcheck.
+    /// As soon as a hub suceeds a healthcheck, it will be considered healthy.
     pub fn succeed_healthcheck(&mut self) -> HubReadiness {
         self.state.consecutive_healthcheck_failures = 0;
         self.state.readiness = HubReadiness::Ready;
@@ -192,7 +205,8 @@ impl Hub {
 }
 
 /// Primary function to calculate the percentage of fullness of a hub based on its
-/// returned status API schema. Returns a value between 0 and 100.
+/// returned status API schema. Returns a map from capabilities (browser/OS pairs) to a
+/// tuple of (running sessions, session capacity).
 pub fn compute_hub_fullness(
     status: &HubStatusJSONSchema,
 ) -> HashMap<NewSessionRequestCapability, (u8, u8)> {
@@ -206,7 +220,6 @@ pub fn compute_hub_fullness(
             }
             match map.get(&key) {
                 Some((active_slots, total_slots)) => {
-                    // total_slots += 1;
                     let active = if slot.session.is_some() { 1 } else { 0 };
                     map.insert(key, (active_slots + active, total_slots + 1));
                 }
@@ -279,26 +292,9 @@ fn mock_status_schema(max_sessions: u32, num_nodes: u32, num_running: u32) -> Hu
     mock
 }
 
-// /// Silly little test to verify the compute_hub_fullness method above.
-// #[test]
-// fn compute_hub_fullness_test() {
-//     let t1 = HubStatusJSONSchema {
-//         value: HubStatusValueJSONSchema {
-//             ready: true,
-//             message: String::from("UP"),
-//             nodes: vec![],
-//         },
-//     };
 
-//     let t2 = mock_status_schema(10, 15, 2);
-//     let t3 = mock_status_schema(10, 10, 6);
-//     let t4 = mock_status_schema(10, 10, 9);
-//     assert_eq!(100, compute_hub_fullness(&t1));
-//     assert_eq!(20, compute_hub_fullness(&t2));
-//     assert_eq!(60, compute_hub_fullness(&t3));
-//     assert_eq!(90, compute_hub_fullness(&t4));
-// }
-
+/// Represents all of the reasons a hub could fail a healthcheck, with an associated
+/// error message which generated that type of failure
 #[derive(Debug)]
 enum HealthcheckErr {
     DeserializError(serde_json::Error),
@@ -306,10 +302,25 @@ enum HealthcheckErr {
     Timeout(String),
 }
 
+
+/// The long-running thread which polls hubs for their healthiness and fullness.
 pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
     info!("starting healthcheck thread");
-    let mut healthcheck_interval = tokio::time::interval(Duration::from_secs(1));
+
+    // Extract the healthcheck interval from config, and turn it into a tokio interval
+    let mut healthcheck_interval = match state.configs.read() {
+        Ok(conf) => {
+            tokio::time::interval(Duration::from_secs(conf.healthcheck_thread_interval))
+        },
+        Err(e) => {
+            warn!("Unable to acquire read lock for configs: {} - defaulting to 1 second healthcheck interval", e);
+            tokio::time::interval(Duration::from_secs(1))
+        },
+    };
+
     loop {
+
+        // Make a request to /status on each hub
         let mut request_futures: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> = {
             let mut join_set: JoinSet<(Uuid, Result<HubStatusJSONSchema, HealthcheckErr>)> =
                 JoinSet::new();
@@ -358,7 +369,7 @@ pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
                             }
                             Err(err) => (hub_uuid, Err(HealthcheckErr::HyperError(err))),
                         },
-                        Err(elapsed) => (
+                        Err(_elapsed) => (
                             hub_uuid,
                             Err(HealthcheckErr::Timeout(format!(
                                 "Healthcheck to {} timed out",
@@ -371,6 +382,8 @@ pub async fn hub_healthcheck_thread(state: Arc<HubRouterState>) {
             join_set
         };
 
+        // For each response to /status (or timeout), inspect the request to determine if the hub is healthy
+        // and if so, update its fullness metrics
         while let Some(res) = request_futures.join_next().await {
             match res {
                 Ok((url, status_result)) => match status_result {

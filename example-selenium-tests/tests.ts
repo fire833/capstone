@@ -1,6 +1,14 @@
 import { Builder, Capabilities } from "selenium-webdriver"
 import { writeFileSync } from "fs";
 
+/*
+ * An example test used for load testing clusters.
+ * This generally shouldn't be used for anything other than that.
+ */
+
+
+// A single test which will be run on the cluster.
+// Picks a browser at random, runs a google search, and returns the page title.
 let browserMap = {};
 async function runTest(i: number){
 	let browser = (() => {	
@@ -21,6 +29,9 @@ async function runTest(i: number){
 
 console.log("Don't forget to set SELENIUM_REMOTE_URL, it is currently set to: " + process.env['SELENIUM_REMOTE_URL']);
 
+
+// The main test running loop -
+// Run tests in batches of 100, with a 6 second pause inbetween each batch
 let num_success = 0;
 let num_fail = 0;
 const NUM_TESTS = 1000;

@@ -24,7 +24,6 @@ spec:
           - "http://hubsvc:9994"
         resources:
           limits:
-            # This process doesn't do all that much, so we can give it a little less.
             memory: {{ .Values.exporter.resources.limits.memory | quote }}
             cpu: {{ .Values.exporter.resources.limits.cpu | quote }}
         ports:

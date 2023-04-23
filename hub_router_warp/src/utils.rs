@@ -1,3 +1,6 @@
+//! Serializes for various elements of the HubRouter state,
+//! enabling them to be saved to disk.
+
 use dashmap::DashMap;
 use log::warn;
 use serde::{de::Visitor, ser::SerializeSeq, Deserializer, Serializer};

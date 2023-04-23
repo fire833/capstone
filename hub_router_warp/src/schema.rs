@@ -1,3 +1,6 @@
+//! Serde struct definitions for JSON schemae which we expect from various
+//! API endpoints on the Selenium hubs
+
 use serde::{Deserialize, Serialize};
 
 use crate::routing::Endpoint;

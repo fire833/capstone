@@ -1,3 +1,5 @@
+//! The API server which serves the UI and provides a configuration interface
+
 use crate::hub::{Hub, HubState, HubMetadata};
 use crate::logger::SEVERE_LOG_STORE;
 use crate::routing::RoutingDecision;
@@ -693,7 +695,6 @@ async fn aggregate_status_responses(
     }
 }
 
-// TODO: clean up
 async fn aggregate_graphql_responses(
     graphql_request: Bytes,
     state: Arc<HubRouterState>,
