@@ -7,6 +7,10 @@ on:
     tags:
       - "*"
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   hub-router-build-push:
     runs-on: ubuntu-latest
@@ -27,7 +31,7 @@ jobs:
       with:
         context: hub_router_warp
         containerfiles: hub_router_warp/Dockerfile
-        image: ghcr.io/fire833/capstone/hub_router_warp
+        image: ghcr.io/fire833/hub_router_warp
         tags: latest v${{ github.ref_name }}
         layers: true
 
@@ -35,8 +39,8 @@ jobs:
       uses: redhat-actions/push-to-registry@v2.7
       with:
         registry: ghcr.io
-        image: ghcr.io/fire833/capstone/hub_router_warp
+        image: ghcr.io/fire833/hub_router_warp
         tags: latest v${{ github.ref_name }}
         username: ${{ github.repository_owner }}
-        password: ${{ secrets.GHCRPAT }}
+        password: ${{ secrets.GITHUB_TOKEN }}
         tls-verify: true

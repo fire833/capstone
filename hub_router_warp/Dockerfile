@@ -30,6 +30,6 @@ USER 1000:1000
 
 LABEL org.opencontainers.image.author="Kendall Tauser, Aaron Pierce"
 LABEL org.opencontainers.image.title="Hub Router Warp - Test Distributor of Selenium tests amongst multiple Hubs."
-# LABEL org.opencontainers.image.source="https://github.com/fire833/capstone"
+LABEL org.opencontainers.image.source="https://github.com/fire833/capstone"
 
 ENTRYPOINT [ "dumb-init", "hub_router" ]
