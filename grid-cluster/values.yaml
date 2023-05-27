@@ -124,7 +124,7 @@ cloud_specific_config:
 exporter:
 
   # -- Specify the image for the exporter instances.
-  image: ghcr.io/fire833/capstone/grid-exporter:latest
+  image: ghcr.io/fire833/grid-exporter:latest
 
   resources:
     limits:
